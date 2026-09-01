@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>动漫热血日语 vs 现实尴尬日语</title>
+<style>
+/* ============================================================
+   动漫热血日语 vs 现实尴尬日语
+   波普 / 多巴胺风：米底 + 黑边 + 硬阴影
+   红 #ff4757 = 动漫热血（错）   绿 #2ed573 = 职场敬语（对）
+   全部日文带 <ruby> 假名标注
+   ============================================================ */
+
+:root{
+  --bg:      #f7f1e3;
+  --card:    #fcfaf2;
+  --white:   #ffffff;
+  --ink:     #111111;
+  --dark:    #2f3542;
+  --muted:   #57606f;
+  --line:    #dfe4ea;
+  --red:     #ff4757;
+  --red-deep:#c72c39;
+  --green:   #2ed573;
+  --green-deep:#0b5d33;
+  --blue:    #1e90ff;
+  --yellow:  #f1c40f;
+  --yellow-deep:#8a6d00;
+  --shadow:    12px 12px 0px var(--ink);
+  --shadow-md: 6px 6px 0px var(--ink);
+  --shadow-sm: 3px 3px 0px var(--ink);
+  --cn: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --jp: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; font-family:var(--cn); }
+
+body{
+  background-color:var(--bg);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  padding:20px;
+  color:var(--dark);
+  overflow:hidden;          /* 桌面端：整页不出现系统滚动条，录屏画面干净 */
+}
+
+/* ---------- 假名注音 ---------- */
+ruby{ ruby-align:center; }
+rt{
+  font-family:var(--jp);
+  font-size:.5em;
+  font-weight:600;
+  color:var(--muted);
+  letter-spacing:0;
+  user-select:none;
+}
+
+/* ============================================================
+   两种版式，靠 <body class="video-mode"> 切换（JS 读 URL 决定，见文件底部）
+
+   ① 默认（玩家访问 index.html）：右侧栏 display:none，
+      整个外框收窄到 --solo-width，游戏区占满 100% 宽度并居中。
+   ② 录屏模式（index.html?mode=video）：右侧栏浮现，
+      外框拉到 1100px，恢复 16:9 的左右分栏比例。
+   想改单人模式下的卡片宽度，只调 --solo-width 这一个值。
+   ============================================================ */
+:root{ --solo-width:720px; }
+
+.main-wrapper{
+  display:flex;
+  flex-direction:row;
+  width:100%;
+  max-width:var(--solo-width);   /* 默认：窄框居中 */
+  height:85vh;                   /* 锁死高度，绝不超出屏幕 */
+  gap:40px;
+  align-items:center;
+  justify-content:center;
+  transition:max-width .25s ease;
+}
+body.video-mode .main-wrapper{
+  max-width:1100px;              /* 录屏：契合 16:9 的拉伸比例 */
+}
+
+/* 右侧录屏侧栏：默认整块隐藏，只有 ?mode=video 才出现 */
+.youtube-sidebar{ display:none; }
+body.video-mode .youtube-sidebar{ display:flex; }
+
+.game-zone{
+  flex:1;                        /* 默认：独占整个外框宽度 */
+  height:100%;
+  background-color:var(--card);
+  border:4px solid var(--ink);
+  border-radius:16px;
+  box-shadow:var(--shadow);
+  padding:24px;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+body.video-mode .game-zone{ flex:1.2; }   /* 录屏：左侧约占 6 成 */
+.game-zone.is-hit{ animation:shake .45s cubic-bezier(.36,.07,.19,.97) both; }
+
+/* ---------- 底部：累计访问量计数器 ---------- */
+.visit-counter{
+  flex:none;
+  margin-top:12px;
+  padding-top:10px;
+  border-top:2px dashed var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:1px;
+  color:var(--muted);
+}
+.visit-counter__fallback{
+  border:2px solid var(--ink);
+  background:var(--white);
+  box-shadow:2px 2px 0px var(--ink);
+  padding:2px 8px;
+  font-variant-numeric:tabular-nums;
+}
+
+/* 中段内容：只有这里滚动 */
+.game-content-scroll{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding-right:10px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--line) transparent;
+}
+.game-content-scroll::-webkit-scrollbar{ width:8px; }
+.game-content-scroll::-webkit-scrollbar-track{ background:transparent; }
+.game-content-scroll::-webkit-scrollbar-thumb{
+  background-color:var(--line);
+  border-radius:99px;
+  border:2px solid var(--card);
+}
+.game-content-scroll:hover::-webkit-scrollbar-thumb{ background-color:#c3cbd6; }
+
+/* 底部固定操作区 */
+.action-bar{
+  flex:none;
+  padding-top:14px;
+  margin-top:4px;
+  border-top:3px solid var(--ink);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:74px;
+}
+.action-hint{
+  width:100%;
+  text-align:center;
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:1px;
+  color:var(--muted);
+  border:2px dashed var(--line);
+  border-radius:8px;
+  padding:14px;
+}
+.action-hint .jp{ font-family:var(--jp); }
+
+/* ---------- 右侧录屏侧栏（display 由上面的 video-mode 规则控制） ---------- */
+.youtube-sidebar{
+  flex:0.8;
+  height:100%;
+  flex-direction:column;
+  justify-content:space-between;
+  padding:20px 0;
+  text-align:left;
+}
+.channel-title-box h1{
+  font-size:clamp(28px,3vw,38px);
+  font-weight:900;
+  color:var(--ink);
+  line-height:1.3;
+  letter-spacing:1px;
+  margin-bottom:10px;
+}
+.channel-title-box .vs-mark{ color:var(--red); font-style:italic; }
+.channel-title-box p{
+  font-size:15px;
+  color:var(--muted);
+  font-weight:bold;
+  line-height:1.6;
+}
+.channel-title-box .tagline-jp{
+  font-family:var(--jp);
+  font-size:13px;
+  color:#9aa2ad;
+  margin-top:8px;
+  line-height:1.9;
+}
+.avatar-placeholder{
+  flex:1;
+  margin:20px 0;
+  background-color:rgba(17,17,17,.04);
+  border:3px dashed var(--ink);
+  border-radius:12px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  text-align:center;
+  padding:16px;
+  color:#8b95a3;
+  font-size:13px;
+  font-weight:bold;
+  line-height:1.7;
+}
+.footer-guide-text{
+  font-size:14px;
+  color:var(--dark);
+  line-height:1.7;
+  font-weight:bold;
+  border-top:3px solid var(--ink);
+  padding-top:15px;
+}
+@keyframes shake{
+  10%,90%{ transform:translate3d(-4px,0,0); }
+  20%,80%{ transform:translate3d(7px,0,0); }
+  30%,50%,70%{ transform:translate3d(-11px,0,0); }
+  40%,60%{ transform:translate3d(11px,0,0); }
+}
+
+/* ---------- 血量 + 进度 HUD（游戏区顶部，不随内容滚动） ---------- */
+.hud{
+  flex:none;
+  padding-bottom:12px;
+  margin-bottom:16px;
+  border-bottom:3px solid var(--ink);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  flex-wrap:wrap;
+}
+.hud[hidden]{ display:none; }
+
+.hearts{ display:flex; gap:6px; align-items:center; }
+.heart{ width:30px; height:30px; display:block; transform-origin:50% 60%; }
+.heart .shape{ fill:var(--red); stroke:var(--ink); stroke-width:9; }
+.heart.is-lost .shape{ fill:var(--line); stroke:#a4b0be; }
+.heart.is-lost{ transform:rotate(-16deg) scale(.85); opacity:.7; }
+.heart.is-breaking{ animation:breakHeart .55s ease-out both; }
+@keyframes breakHeart{
+  0%{ transform:scale(1) rotate(0); }
+  30%{ transform:scale(1.6) rotate(8deg); }
+  60%{ transform:scale(.78) rotate(-20deg); }
+  100%{ transform:rotate(-16deg) scale(.85); }
+}
+
+.progress{ display:flex; align-items:center; gap:10px; }
+.counter{
+  font-size:13px;
+  font-weight:700;
+  color:var(--muted);
+  letter-spacing:1px;
+  font-variant-numeric:tabular-nums;
+}
+.counter b{ color:var(--red); font-size:20px; }
+.bar{
+  width:clamp(110px,30vw,170px);
+  height:16px;
+  border:3px solid var(--ink);
+  border-radius:99px;
+  background-color:var(--line);
+  overflow:hidden;
+}
+.bar__fill{
+  display:block;
+  height:100%;
+  width:0;
+  background-color:var(--blue);
+  background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.35) 0 5px,transparent 5px 10px);
+  transition:width .45s cubic-bezier(.2,.9,.25,1);
+}
+
+/* ---------- 画面容器（外框由 .game-zone 提供，这里不再画边框） ---------- */
+.card{
+  position:relative;
+  padding:2px 2px 8px;
+  animation:cardIn .28s ease-out both;
+}
+.card--center{ text-align:center; }
+@keyframes cardIn{ from{ transform:translateY(12px); opacity:0; } to{ transform:none; opacity:1; } }
+
+/* ---------- 封面 ---------- */
+.sub-lang-title{
+  font-family:var(--jp);
+  font-size:14px;
+  color:var(--muted);
+  letter-spacing:4px;
+  margin-bottom:24px;
+  font-weight:600;
+}
+.title-vs-box{ margin-bottom:24px; }
+.main-title{
+  font-size:clamp(32px,8.4vw,42px);
+  font-weight:900;
+  letter-spacing:3px;
+  line-height:1.2;
+}
+.red-title{ color:var(--red); text-shadow:2px 2px 0px rgba(0,0,0,.1); }
+.blue-title{ color:var(--dark); }
+.vs-text{
+  font-size:24px;
+  font-weight:900;
+  color:var(--red);
+  margin:8px 0;
+  font-style:italic;
+}
+.desc-text{
+  font-size:15px;
+  color:var(--muted);
+  line-height:1.8;
+  margin-bottom:30px;
+  padding:0 10px;
+}
+
+/* 虚线规则卡 */
+.rules-card{
+  border:2px dashed var(--dark);
+  padding:20px;
+  text-align:left;
+  border-radius:6px;
+  display:grid;
+  gap:12px;
+}
+.rule-item{
+  font-size:14px;
+  color:var(--dark);
+  display:flex;
+  align-items:flex-start;
+  line-height:1.5;
+}
+.rule-item::before{
+  content:"▶";
+  color:var(--red);
+  font-size:10px;
+  margin-right:8px;
+  margin-top:3px;
+  flex:none;
+}
+
+/* ---------- 按钮 ---------- */
+.start-btn{
+  background-color:var(--ink);
+  color:var(--white);
+  border:none;
+  padding:16px 36px;
+  font-size:18px;
+  font-weight:bold;
+  border-radius:6px;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:12px;
+  margin-top:35px;
+  transition:transform .2s ease, box-shadow .2s ease, background-color .2s ease;
+  box-shadow:0 4px 0px #555;
+}
+.start-btn:hover{ transform:translateY(-2px); box-shadow:0 6px 0px #555; background-color:#222; }
+.start-btn:active{ transform:translateY(2px); box-shadow:0 2px 0px #555; }
+.start-btn:focus-visible{ outline:3px solid var(--red); outline-offset:4px; }
+.start-btn .jp-text{
+  font-family:var(--jp);
+  font-size:16px;
+  color:var(--yellow);
+  border-right:1px solid #555;
+  padding-right:12px;
+  line-height:1.5;
+}
+.start-btn .jp-text rt{ color:rgba(241,196,15,.75); }
+.start-btn--pulse{ animation:pulseBtn 2s infinite; }
+@keyframes pulseBtn{
+  0%{ transform:scale(1); }
+  50%{ transform:scale(1.03); box-shadow:0 4px 15px rgba(0,0,0,.2); }
+  100%{ transform:scale(1); }
+}
+/* 底部操作区里的按钮：铺满宽度 */
+.action-bar .start-btn{
+  width:100%;
+  margin-top:0;
+  padding:15px 20px;
+  justify-content:center;
+}
+
+/* ---------- 场景描述区 ---------- */
+.scene-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:16px;
+}
+.scene{
+  display:inline-block;
+  font-family:var(--jp);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:2px;
+  line-height:1.9;
+  color:var(--white);
+  background-color:var(--dark);
+  border-radius:99px;
+  padding:5px 14px;
+}
+/* 热度标签：激将文案，勾好胜心 */
+.heat-tag{
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.5px;
+  color:var(--red-deep);
+  background-color:#fff2f3;
+  border:2px solid var(--red);
+  border-radius:99px;
+  padding:4px 10px;
+  white-space:nowrap;
+}
+
+/* 题型：这题在考"说法/习惯/后果" */
+.qtype{
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:1px;
+  color:var(--muted);
+  background-color:var(--white);
+  border:2px solid var(--line);
+  border-radius:99px;
+  padding:4px 10px;
+}
+.scene rt{ color:rgba(255,255,255,.7); font-size:.6em; }
+
+.question-box{
+  background-color:var(--white);
+  border:2px solid var(--line);
+  border-left:6px solid var(--yellow);
+  border-radius:6px;
+  padding:14px 16px;
+  margin-bottom:20px;
+}
+.question-box .jp-line{
+  font-family:var(--jp);
+  font-size:15.5px;
+  font-weight:500;
+  line-height:2.3;
+  color:var(--dark);
+}
+.question-box .zh-line{
+  margin-top:8px;
+  padding-top:8px;
+  border-top:1px dashed var(--line);
+  font-size:13px;
+  line-height:1.7;
+  color:var(--muted);
+}
+.question-box b{ color:var(--red); font-weight:700; }
+
+.ask{
+  font-family:var(--jp);
+  font-size:clamp(19px,4.8vw,24px);
+  font-weight:900;
+  letter-spacing:1px;
+  line-height:1.9;
+  color:var(--dark);
+  margin-bottom:4px;
+}
+.ask rt{ font-size:.42em; color:#8b95a3; }
+.ask-cn{ font-size:14px; color:var(--muted); margin-bottom:22px; }
+
+/* ---------- 选项 ---------- */
+.options-container{ display:grid; gap:12px; }
+
+.option-card{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  text-align:left;
+  background-color:var(--white);
+  border:3px solid var(--ink);
+  border-radius:8px;
+  padding:12px 14px;
+  cursor:pointer;
+  color:var(--dark);
+  transition:transform .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+.option-card:hover:not(:disabled){ transform:translate(-3px,-3px); box-shadow:var(--shadow-sm); }
+.option-card:focus-visible{ outline:3px solid var(--blue); outline-offset:3px; }
+.option-card:disabled{ cursor:default; }
+
+.option-left{ display:flex; align-items:center; gap:12px; min-width:0; }
+.option-letter{
+  flex:none;
+  width:32px; height:32px;
+  display:grid; place-items:center;
+  font-size:15px; font-weight:900;
+  color:var(--white);
+  background-color:var(--ink);
+  border-radius:50%;
+}
+.option-text-box{ display:grid; gap:2px; min-width:0; }
+.option-card .jp-text{
+  font-family:var(--jp);
+  font-size:clamp(15.5px,4vw,18px);
+  font-weight:700;
+  line-height:1.9;
+}
+.option-card .zh-text{ font-size:12.5px; color:var(--muted); }
+
+/* 语性质标签 */
+.badge{
+  flex:none;
+  margin-left:auto;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:1px;
+  padding:4px 9px;
+  border-radius:99px;
+  border:2px solid currentColor;
+  background-color:var(--white);
+  white-space:nowrap;
+}
+.badge-anime  { color:var(--red); }
+.badge-keigo  { color:var(--green-deep); }
+.badge-casual { color:var(--yellow-deep); }
+
+/* 判定后的状态 */
+.option-card.is-right{ background-color:var(--green); color:var(--ink); box-shadow:var(--shadow-sm); }
+.option-card.is-right .zh-text{ color:var(--green-deep); }
+.option-card.is-right rt{ color:var(--green-deep); }
+.option-card.is-right .option-letter{ background-color:var(--ink); color:var(--green); }
+.option-card.is-wrong{ background-color:var(--red); color:var(--white); }
+.option-card.is-wrong .zh-text{ color:rgba(255,255,255,.85); }
+.option-card.is-wrong rt{ color:rgba(255,255,255,.8); }
+.option-card.is-wrong .option-letter{ background-color:var(--white); color:var(--red-deep); }
+.option-card.is-dim{ opacity:.42; }
+
+/* ---------- 讲解 ---------- */
+.verdict{
+  position:relative;
+  overflow:hidden;
+  margin-top:22px;
+  border:3px solid var(--ink);
+  border-radius:10px;
+  padding:18px;
+  animation:cardIn .3s ease-out both;
+}
+.verdict--ok{ background-color:#f1fdf6; }
+.verdict--ng{ background-color:#fff2f3; }
+/* 正文压在水印之上 */
+.verdict > *:not(.verdict__watermark){ position:relative; }
+
+/* 巨型半透明判定符号：1 秒内读懂输赢 */
+.verdict__watermark{
+  position:absolute;
+  right:-30px;
+  top:50%;
+  width:clamp(180px,48vw,240px);
+  transform:translateY(-50%) rotate(-8deg);
+  pointer-events:none;
+  user-select:none;
+}
+.verdict--ok .verdict__watermark{ color:var(--green); opacity:.18; }
+.verdict--ng .verdict__watermark{ color:var(--red); opacity:.16; }
+
+.verdict__head-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:12px;
+}
+.verdict__icon{
+  flex:none;
+  width:46px; height:46px;
+  padding:10px;
+  border-radius:50%;
+  border:3px solid var(--ink);
+  box-shadow:var(--shadow-sm);
+  animation:stampPop .45s cubic-bezier(.2,1.6,.4,1) both;
+}
+.verdict--ok .verdict__icon{ background-color:var(--green); color:var(--ink); }
+.verdict--ng .verdict__icon{ background-color:var(--red); color:var(--white); }
+@keyframes stampPop{
+  0%{ transform:scale(2.6) rotate(-22deg); opacity:0; }
+  60%{ transform:scale(.9) rotate(5deg); opacity:1; }
+  100%{ transform:scale(1) rotate(0); opacity:1; }
+}
+.verdict__watermark svg,
+.verdict__icon svg{ display:block; width:100%; height:100%; }
+
+.verdict__head{
+  font-size:19px;
+  font-weight:900;
+  letter-spacing:1px;
+  line-height:1.35;
+}
+.verdict--ok .verdict__head{ color:#128046; }
+.verdict--ng .verdict__head{ color:var(--red-deep); }
+.verdict p{ font-size:14px; line-height:2.1; color:var(--dark); margin-bottom:8px; }
+.verdict p:last-of-type{ margin-bottom:0; }
+.verdict .jp{ font-family:var(--jp); font-weight:700; color:var(--ink); }
+/* 黄色进阶框 */
+.bonus-box{
+  margin-top:16px;
+  background-color:#fff8dd;
+  border:2px dashed var(--yellow);
+  border-radius:6px;
+  padding:12px 14px;
+  font-size:13px;
+  line-height:2.1;
+  color:var(--muted);
+}
+.bonus-box__label{
+  display:inline-block;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:2px;
+  color:var(--white);
+  background-color:var(--yellow-deep);
+  border-radius:99px;
+  padding:2px 10px;
+  margin-bottom:6px;
+}
+/* 荧光笔式重点：用下划线而非背景色，避免盖住 ruby 假名 */
+.highlight{
+  font-family:var(--jp);
+  font-weight:700;
+  color:var(--ink);
+  text-decoration:underline;
+  text-decoration-color:var(--yellow);
+  text-decoration-thickness:3px;
+  text-underline-offset:3px;
+  text-decoration-skip-ink:none;
+}
+
+/* ---------- 冲击字 ---------- */
+.impact{
+  position:fixed;
+  left:50%; top:40%;
+  z-index:40;
+  transform:translate(-50%,-50%);
+  text-align:center;
+  pointer-events:none;
+  animation:impact 1.1s cubic-bezier(.2,1.4,.4,1) both;
+}
+.impact__jp{
+  font-family:var(--jp);
+  font-size:clamp(46px,13vw,86px);
+  font-weight:900;
+  line-height:1.15;
+  letter-spacing:2px;
+  color:var(--white);
+  -webkit-text-stroke:7px var(--ink);
+  paint-order:stroke fill;
+  transform:rotate(-6deg);
+}
+.impact__jp rt{
+  font-size:.24em;
+  color:var(--white);
+  -webkit-text-stroke:3px var(--ink);
+}
+.impact--ng .impact__jp,
+.impact--ng .impact__jp rt{ color:var(--red); }
+.impact--ok .impact__jp,
+.impact--ok .impact__jp rt{ color:var(--green); }
+.impact__cn{
+  display:inline-block;
+  margin-top:12px;
+  font-size:clamp(16px,4vw,22px);
+  font-weight:900;
+  color:var(--ink);
+  background-color:var(--white);
+  border:3px solid var(--ink);
+  border-radius:6px;
+  box-shadow:var(--shadow-sm);
+  padding:6px 16px;
+  transform:rotate(-2deg);
+}
+@keyframes impact{
+  0%{ transform:translate(-50%,-50%) scale(2.6); opacity:0; }
+  18%{ transform:translate(-50%,-50%) scale(1); opacity:1; }
+  70%{ transform:translate(-50%,-50%) scale(1); opacity:1; }
+  100%{ transform:translate(-50%,-60%) scale(.94); opacity:0; }
+}
+
+/* ---------- 红屏闪烁 / 撒花 ---------- */
+.flash{
+  position:fixed; inset:0; z-index:30; pointer-events:none; opacity:0;
+  background:radial-gradient(circle at 50% 45%, rgba(255,71,87,.12) 0%, rgba(255,71,87,.85) 100%);
+}
+.flash.is-on{ animation:flash .55s ease-out both; }
+@keyframes flash{ 0%{opacity:0;} 12%{opacity:1;} 40%{opacity:.25;} 60%{opacity:.8;} 100%{opacity:0;} }
+.fx{ position:fixed; inset:0; z-index:35; pointer-events:none; }
+
+/* ---------- 结算 ---------- */
+.result-kicker{
+  font-family:var(--jp);
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:4px;
+  color:var(--muted);
+  margin-bottom:22px;
+}
+.badge-rank{
+  width:clamp(170px,44vw,196px);
+  height:clamp(170px,44vw,196px);
+  margin:0 auto 22px;
+  border:5px solid var(--ink);
+  border-radius:50%;
+  box-shadow:var(--shadow-md);
+  background-color:var(--red);
+  color:var(--white);
+  display:grid;
+  place-content:center;
+  gap:8px;
+  padding:14px;
+  transform:rotate(-6deg);
+  animation:badgeIn .5s cubic-bezier(.2,1.5,.4,1) both;
+}
+.badge-rank--win{ background-color:var(--green); color:var(--ink); }
+@keyframes badgeIn{
+  0%{ transform:rotate(-22deg) scale(2.1); opacity:0; }
+  100%{ transform:rotate(-6deg) scale(1); opacity:1; }
+}
+.badge-rank__label{ font-size:12px; letter-spacing:5px; font-weight:700; opacity:.85; }
+.badge-rank__text{ font-size:clamp(22px,6vw,28px); font-weight:900; line-height:1.25; letter-spacing:1px; }
+.result-jp{
+  font-family:var(--jp);
+  font-size:18px;
+  font-weight:700;
+  line-height:2;
+  color:var(--dark);
+  margin-bottom:10px;
+}
+.score{
+  display:inline-flex;
+  align-items:baseline;
+  gap:6px;
+  font-size:16px;
+  font-weight:700;
+  color:var(--dark);
+  background-color:var(--white);
+  border:3px solid var(--ink);
+  border-radius:99px;
+  padding:8px 20px;
+  font-variant-numeric:tabular-nums;
+}
+.score b{ font-size:26px; font-weight:900; color:var(--red); }
+.result-note{
+  font-size:14px;
+  line-height:1.85;
+  color:var(--muted);
+  margin:18px auto 0;
+  max-width:30em;
+}
+.recap{ list-style:none; margin-top:26px; display:grid; gap:10px; text-align:left; }
+.recap li{
+  display:flex; gap:10px; align-items:center;
+  background-color:var(--white);
+  border:2px solid var(--line);
+  border-radius:8px;
+  padding:10px 12px;
+  font-size:13.5px;
+  line-height:1.9;
+}
+.recap__mark{
+  flex:none;
+  width:26px; height:26px;
+  display:grid; place-items:center;
+  border-radius:50%;
+  font-size:14px; font-weight:900;
+  color:var(--white);
+}
+.recap__mark--ok{ background-color:var(--green); color:var(--ink); }
+.recap__mark--ng{ background-color:var(--red); }
+.recap__jp{ display:block; font-family:var(--jp); font-weight:700; font-size:12.5px; color:var(--muted); }
+
+/* 罗马音：给念不出假名的人兜底 */
+.romaji{
+  display:block;
+  font-size:12px;
+  font-style:italic;
+  letter-spacing:.4px;
+  color:#8b95a3;
+}
+.verdict p.romaji{
+  margin:-4px 0 0;
+  font-size:12.5px;
+  line-height:1.6;
+  color:#8b95a3;
+}
+.recap__cn{ color:var(--muted); font-size:12px; }
+.recap__take{ display:block; font-weight:700; color:var(--dark); }
+.recap-title{
+  margin-top:26px;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:3px;
+  color:var(--muted);
+  text-align:left;
+}
+.recap-title + .recap{ margin-top:10px; }
+
+/* 弱项诊断 */
+.diagnosis{
+  display:inline-block;
+  margin-top:14px;
+  font-size:13.5px;
+  color:var(--dark);
+  background-color:var(--white);
+  border:2px dashed var(--muted);
+  border-radius:99px;
+  padding:7px 18px;
+}
+.diagnosis b{ color:var(--red); }
+
+/* 题库自检报错条 */
+.alert{
+  border:4px solid var(--red);
+  border-radius:12px;
+  background-color:#fff2f3;
+  box-shadow:var(--shadow-md);
+  padding:14px 18px;
+  font-size:13px;
+  line-height:1.8;
+  color:var(--red-deep);
+}
+.alert[hidden]{ display:none; }
+.alert ul{ margin:6px 0 0 18px; }
+
+/* ============================================================
+   响应式：手机端变单列，右侧录屏侧栏整个隐藏，不干扰游玩
+   ============================================================ */
+@media (max-width:768px){
+  body{ overflow:auto; align-items:flex-start; padding:16px 14px 40px; }
+  .main-wrapper{
+    flex-direction:column;
+    height:auto;
+    max-width:100%;
+    gap:20px;
+  }
+  .game-zone{
+    width:100%;
+    height:auto;
+    padding:20px 18px;
+    box-shadow:var(--shadow-md);
+  }
+  .game-content-scroll{ overflow:visible; padding-right:0; }
+  /* 手机端一律隐藏侧栏，录屏模式也不例外（玩家用手机玩时不该被干扰） */
+  .youtube-sidebar,
+  body.video-mode .youtube-sidebar{ display:none; }
+  body.video-mode .main-wrapper{ max-width:100%; }
+  .action-bar{ min-height:0; }
+}
+
+/* 桌面端 + 录屏模式下，大标题由右侧栏承担，卡片内不再重复；
+   单人模式（没有侧栏）时照常显示 */
+@media (min-width:769px){
+  body.video-mode .cover-brand{ display:none; }
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="flash" id="flash" aria-hidden="true"></div>
+<canvas class="fx" id="fx" aria-hidden="true"></canvas>
+
+<div class="main-wrapper">
+
+  <!-- ========== 左：游戏区（高度锁死，内部滚动） ========== -->
+  <div class="game-zone" id="app">
+
+    <div class="hud" id="hud" hidden>
+      <div class="hearts" id="hearts" aria-label="剩余血量"></div>
+      <div class="progress">
+        <span class="counter"><b id="qnum">1</b> / <span id="qtotal">3</span></span>
+        <div class="bar" id="bar" role="progressbar" aria-label="答题进度" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">
+          <span class="bar__fill" id="barFill"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 内部滚动区：题目再长也不会撑爆外框 -->
+    <div class="game-content-scroll" id="scrollArea">
+      <!-- 题库自检报错条（正常情况下隐藏） -->
+      <div class="alert" id="alert" hidden></div>
+      <div id="screen" aria-live="polite"></div>
+    </div>
+
+    <!-- 底部固定操作区：开始 / 下一题 / 结算 / 重来 -->
+    <div class="action-bar" id="actionBar"></div>
+
+    <!-- 累计访问量计数器：挂件加载失败时自动降级为本地文案 -->
+    <div class="visit-counter">
+      <span>累计访问</span>
+      <img src="https://websiteout.net" alt="Views"
+           style="border: 2px solid #111111; padding: 2px; background: white; box-shadow: 2px 2px 0px #111111; vertical-align: middle;"
+           onerror="this.remove(); document.getElementById('counterFallback').hidden = false;">
+      <span class="visit-counter__fallback" id="counterFallback" hidden>计数器待接入</span>
+    </div>
+  </div>
+
+  <!-- ========== 右：录屏侧栏（手机端自动隐藏） ========== -->
+  <aside class="youtube-sidebar">
+    <div class="channel-title-box">
+      <h1>动漫热血日语<br><span class="vs-mark">VS</span> 现实尴尬日语</h1>
+      <p>—— 别把二次元台词带入现实职场！</p>
+      <p class="tagline-jp"><ruby>敬語<rt>けいご</rt></ruby>は<ruby>武器<rt>ぶき</rt></ruby>。ちゃんと<ruby>使<rt>つか</rt></ruby>えば、<ruby>恥<rt>はじ</rt></ruby>はかかない。</p>
+    </div>
+
+    <!-- OBS 里把摄像头 / Live2D 直接叠在这个框的位置 -->
+    <div class="avatar-placeholder">【OBS 画面叠加区：Live2D、真人出镜或动态字幕】</div>
+
+    <div class="footer-guide-text">
+      👉 体验同款网页小游戏：网址已放在评论区置顶<br>
+      ✨ 喜欢请点赞、订阅，每周更新地道日本生存指南
+    </div>
+  </aside>
+
+</div>
+
+<script src="../data/_core.js"></script>
+<script src="../data/workplace.js"></script>
+<script src="../data/survival.js"></script>
+<script src="../data/anime.js"></script>
+<script src="../data/keigo.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  /* 题库来自 data/*.js —— 没加载成功就直接告诉用户，别白屏 */
+  const JP = window.JP;
+  if (!JP) {
+    const box = document.getElementById("alert");
+    box.hidden = false;
+    box.innerHTML = "<b>题库没有加载。</b><ul>" +
+      "<li>直接打开 index.html 时，data/ 目录必须和它放在一起</li>" +
+      "<li>要发给别人或发布上线，请用 <b>dist/index.html</b>（合并后的单文件版）</li></ul>";
+    return;
+  }
+  const { R, PACKS, TYPES, ROUND, MAX_HP, SHOW_ROMAJI, BANK, RANKS } = JP;
+
+  /* ========== 状态 ========== */
+  // SET = 本局抽中的 3 道题；BANK 是全部题库
+  let SET = [];
+  const state = { index:0, hp:MAX_HP, correct:0, log:[], locked:false };
+
+  const $ = (id) => document.getElementById(id);
+  const app = $("app"), screen = $("screen"), hud = $("hud"), flash = $("flash");
+  const scrollArea = $("scrollArea"), actionBar = $("actionBar");
+  const heartsEl = $("hearts"), qnum = $("qnum"), bar = $("bar"), barFill = $("barFill");
+  $("qtotal").textContent = ROUND;
+
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const HEART_SVG = '<svg class="heart" viewBox="0 0 100 100" aria-hidden="true"><path class="shape" d="M50 86C24 68 8 52 8 34 8 21 18 12 30 12c8 0 15 4 20 11 5-7 12-11 20-11 12 0 22 9 22 22 0 18-16 34-42 52z"/></svg>';
+
+  /* 判定符号：○ / ✕（SVG 绘制，不依赖系统字体） */
+  const MARK = {
+    ok: '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="31" fill="none" stroke="currentColor" stroke-width="15"/></svg>',
+    ng: '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M26 26 76 76M76 26 26 76" fill="none" stroke="currentColor" stroke-width="15" stroke-linecap="round"/></svg>'
+  };
+
+  /* ========== HUD ========== */
+  function renderHearts(breakIndex = -1){
+    heartsEl.innerHTML = HEART_SVG.repeat(MAX_HP);
+    [...heartsEl.children].forEach((el, i) => {
+      if (i >= state.hp) el.classList.add("is-lost");
+      if (i === breakIndex && !reduced) el.classList.add("is-breaking");
+    });
+  }
+  function renderProgress(){
+    qnum.textContent = Math.min(state.index + 1, ROUND);
+    barFill.style.width = (state.index / ROUND * 100) + "%";
+    bar.setAttribute("aria-valuenow", String(state.index));
+  }
+
+  /* ========== 封面 ========== */
+  /* 底部操作区：按钮统一放这里，不随内容滚动 */
+  function renderAction(html, onClick){
+    actionBar.innerHTML = html;
+    const btn = actionBar.querySelector("button");
+    if (btn && onClick) btn.addEventListener("click", onClick);
+  }
+
+  const actionButton = (jp, cn, pulse) =>
+    `<button class="start-btn${pulse ? " start-btn--pulse" : ""}" type="button">
+       <span class="jp-text">${jp}</span><span>${cn}</span>
+     </button>`;
+
+  function renderCover(){
+    hud.hidden = true;
+    scrollArea.scrollTop = 0;
+    screen.innerHTML = `
+      <div class="card card--center">
+        <div class="sub-lang-title">日本語シチュエーション・クイズ</div>
+        <div class="cover-brand">
+          <div class="title-vs-box">
+            <div class="main-title red-title">动漫热血日语</div>
+            <div class="vs-text">vs</div>
+            <div class="main-title blue-title">现实尴尬日语</div>
+          </div>
+        </div>
+        <p class="desc-text">
+          番剧看了三百集，敬语一句不会。<br>
+          三个真实场面，三条命——说错一句，气氛就凉一次。
+        </p>
+        <div class="rules-card">
+          <div class="rule-item">共 ${ROUND} 题，每答错一题失去一颗心</div>
+          <div class="rule-item">血量归零即刻结束，别指望硬刚</div>
+          <div class="rule-item">每局从 ${BANK.length} 道题里随机抽 ${ROUND} 个不同场景，难度由浅入深</div>
+          <div class="rule-item">全部日文带假名注音，边玩边记</div>
+        </div>
+      </div>`;
+    renderAction(actionButton('<ruby>出勤<rt>しゅっきん</rt></ruby>する', "开始挑战 👇", true), startGame);
+  }
+
+  function startGame(){
+    SET = JP.draw();
+    state.index = 0; state.hp = MAX_HP; state.correct = 0; state.log = []; state.locked = false;
+    hud.hidden = false;
+    renderHearts();
+    renderQuestion();
+  }
+
+  /* ========== 题目 ========== */
+  function renderQuestion(){
+    const q = SET[state.index];
+    state.locked = false;
+    renderProgress();
+    scrollArea.scrollTop = 0;
+    renderAction(`<p class="action-hint">${R('A・B・C から{選|えら}んでください')} ／ 选一个答案</p>`);
+    screen.innerHTML = `
+      <div class="card">
+        <div class="scene-row">
+          <span class="scene">${R(PACKS[q.pack].label)} ・ ${q.scene}</span>
+          <span class="qtype">${TYPES[q.type].label}</span>
+          ${q.heat ? `<span class="heat-tag">${q.heat}</span>` : ""}
+        </div>
+
+        <div class="question-box">
+          <p class="jp-line">${q.jp}</p>
+          <p class="zh-line">${q.zh}</p>
+        </div>
+
+        <h2 class="ask">${q.ask}</h2>
+        <p class="ask-cn">${q.askCn}</p>
+
+        <div class="options-container" id="options" role="group" aria-label="选项"></div>
+        <div id="verdict"></div>
+      </div>`;
+
+    const wrap = $("options");
+    q.options.forEach((opt, i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "option-card";
+      b.dataset.i = String(i);
+      b.innerHTML = `
+        <span class="option-left">
+          <span class="option-letter">${"ABC"[i]}</span>
+          <span class="option-text-box">
+            <span class="jp-text">${opt.jp}</span>
+            <span class="zh-text">${opt.zh}</span>
+          </span>
+        </span>
+        <span class="badge badge-${opt.kind}">${opt.badge}</span>`;
+      b.addEventListener("click", () => answer(i));
+      wrap.appendChild(b);
+    });
+  }
+
+  /* ========== 判定 ========== */
+  function answer(choice){
+    if (state.locked) return;
+    state.locked = true;
+
+    const q = SET[state.index];
+    const picked = q.options[choice];
+    const rightIndex = q.options.findIndex(o => o.ok);
+    const ok = picked.ok;
+
+    [...$("options").children].forEach((el, i) => {
+      el.disabled = true;
+      if (i === rightIndex) el.classList.add("is-right");
+      else if (i === choice) el.classList.add("is-wrong");
+      else el.classList.add("is-dim");
+    });
+
+    state.log.push({ ok, picked, right:q.options[rightIndex], pack:q.pack, takeaway:q.takeaway });
+
+    if (ok){
+      state.correct++;
+      impact('<ruby>正解<rt>せいかい</rt></ruby>！', "答得漂亮！", "ok");
+      confetti();
+    } else {
+      state.hp = Math.max(0, state.hp - 1);
+      renderHearts(state.hp);
+      impact('<ruby>気<rt>き</rt></ruby>まずい！', "太尴尬了！", "ng");
+      redFlash();
+      app.classList.remove("is-hit");
+      void app.offsetWidth;
+      app.classList.add("is-hit");
+    }
+
+    showVerdict(ok, q, picked, q.options[rightIndex]);
+  }
+
+  function showVerdict(ok, q, picked, right){
+    const last = state.index === ROUND - 1;
+    const end = state.hp === 0 || last;
+
+    const romaji = (SHOW_ROMAJI && right.romaji) ? `<p class="romaji">${right.romaji}</p>` : "";
+    const body = ok
+      ? `<p><span class="jp">${right.jp}</span> — ${right.why}</p>${romaji}`
+      : `<p>你选的 <span class="jp">${picked.jp}</span>：${picked.why}</p>
+         <p>正解是 <span class="jp">${right.jp}</span> — ${right.why}</p>${romaji}`;
+
+    const mark = ok ? MARK.ok : MARK.ng;
+    $("verdict").innerHTML = `
+      <div class="verdict ${ok ? "verdict--ok" : "verdict--ng"}">
+        <span class="verdict__watermark">${mark}</span>
+        <div class="verdict__head-row">
+          <span class="verdict__icon">${mark}</span>
+          <h3 class="verdict__head">${ok ? "正解 ・ 空气很安全" : "不正解 ・ 空气凝固了"}</h3>
+        </div>
+        ${body}
+        <div class="bonus-box">
+          <span class="bonus-box__label">进阶</span>
+          <div>${q.tip}</div>
+        </div>
+      </div>`;
+
+    renderAction(
+      actionButton(
+        end ? R('{結果|けっか}へ') : R('{次|つぎ}へ'),
+        end ? "查看结算 🏁" : "下一题 👉"
+      ),
+      () => {
+        state.index++;
+        renderProgress();
+        if (state.hp === 0 || state.index >= ROUND) renderResult();
+        else renderQuestion();
+      }
+    );
+
+    // 讲解框刚出现在下方，滚过去让玩家直接看到
+    requestAnimationFrame(() => {
+      const box = screen.querySelector(".verdict");
+      if (box) box.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" });
+    });
+  }
+
+  /* ========== 结算 ========== */
+  function renderResult(){
+    const wiped = state.hp === 0;
+    const r = RANKS.find(x => state.correct >= x.min);
+    renderProgress();
+
+    /* 带走清单：每题一条金句 */
+    const recap = state.log.map(item => `
+      <li>
+        <span class="recap__mark recap__mark--${item.ok ? "ok" : "ng"}">${item.ok ? "○" : "×"}</span>
+        <span>
+          <span class="recap__take">${item.takeaway}</span>
+          <span class="recap__jp">${item.right.jp}</span>
+          ${SHOW_ROMAJI && item.right.romaji ? `<span class="romaji">${item.right.romaji}</span>` : ""}
+        </span>
+      </li>`).join("");
+
+    /* 弱项诊断：按错题所属大类归因 */
+    const missed = state.log.filter(x => !x.ok);
+    let diagnosis;
+    if (!missed.length){
+      diagnosis = `本局 ${state.log.length} 个场景零失误，分寸感在线。`;
+    } else {
+      const tally = {};
+      missed.forEach(x => { tally[x.pack] = (tally[x.pack] || 0) + 1; });
+      const worst = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+      diagnosis = "弱项：" + worst.map(([p, n]) => `<b>${PACKS[p].cn}</b> ${n} 次`).join(" ・ ");
+    }
+
+    screen.innerHTML = `
+      <div class="card card--center">
+        <div class="result-kicker">${wiped ? "ライフゼロ ・ 血量归零" : "リザルト ・ 结算"}</div>
+        <div class="badge-rank ${r.win ? "badge-rank--win" : ""}">
+          <div class="badge-rank__label">称号</div>
+          <div class="badge-rank__text">${r.rank}</div>
+        </div>
+        <p class="result-jp">${r.jp}</p>
+        <p class="score">正解 <b>${state.correct}</b> / ${ROUND} ・ 残 HP ${state.hp}</p>
+        <p class="result-note">${r.note}</p>
+        <p class="diagnosis">${diagnosis}</p>
+        <div class="recap-title">带走这 ${state.log.length} 句</div>
+        <ul class="recap">${recap}</ul>
+      </div>`;
+
+    scrollArea.scrollTop = 0;
+    renderAction(actionButton(R('もう{一度|いちど}'), "再来一次 🔁", true), renderCover);
+
+    if (state.correct === ROUND) confetti(150);
+  }
+
+  /* ========== 特效 ========== */
+  function impact(jp, cn, kind){
+    const el = document.createElement("div");
+    el.className = "impact impact--" + kind;
+    el.innerHTML = `<div class="impact__jp">${jp}</div><div class="impact__cn">${cn}</div>`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), reduced ? 700 : 1200);
+  }
+
+  function redFlash(){
+    flash.classList.remove("is-on");
+    void flash.offsetWidth;
+    flash.classList.add("is-on");
+  }
+
+  const fx = $("fx"), ctx = fx.getContext("2d");
+  let parts = [], raf = null;
+
+  function sizeCanvas(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    fx.width = innerWidth * dpr;
+    fx.height = innerHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  sizeCanvas();
+  addEventListener("resize", sizeCanvas);
+
+  const COLORS = ["#ff4757", "#2ed573", "#1e90ff", "#f1c40f", "#ffffff"];
+
+  function confetti(count = 90){
+    if (reduced) return;
+    for (let i = 0; i < count; i++){
+      parts.push({
+        x: innerWidth * (0.5 + (Math.random() - 0.5) * 0.5),
+        y: innerHeight * 0.4,
+        vx: (Math.random() - 0.5) * 11,
+        vy: -Math.random() * 13 - 4,
+        w: 6 + Math.random() * 8,
+        h: 8 + Math.random() * 10,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.3,
+        color: COLORS[(Math.random() * COLORS.length) | 0],
+        round: Math.random() < 0.4,
+        life: 1
+      });
+    }
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
+
+  function tick(){
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    parts = parts.filter(p => p.life > 0 && p.y < innerHeight + 60);
+    for (const p of parts){
+      p.vy += 0.34; p.vx *= 0.992; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      if (p.y > innerHeight * 0.7) p.life -= 0.02;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.strokeStyle = "#111111";
+      ctx.lineWidth = 1.5;
+      if (p.round){
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.w * 0.5, p.h * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      } else {
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.strokeRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      }
+      ctx.restore();
+    }
+    if (parts.length) raf = requestAnimationFrame(tick);
+    else { ctx.clearRect(0, 0, innerWidth, innerHeight); raf = null; }
+  }
+
+  /* ---- 键盘 A / B / C 作答 ---- */
+  addEventListener("keydown", (e) => {
+    const i = "abc".indexOf(e.key.toLowerCase());
+    if (i < 0 || state.locked) return;
+    const btn = document.querySelector(`.option-card[data-i="${i}"]`);
+    if (btn && !btn.disabled) btn.click();
+  });
+
+  /* ============================================================
+     URL 暗号：网址带 ?mode=video 才进入「录屏模式」
+     ------------------------------------------------------------
+       index.html              → 玩家版：右侧栏隐藏，游戏区居中占满
+       index.html?mode=video   → 录屏版：右侧栏浮现，恢复左右分栏
+     参数值不区分大小写（MODE=VIDEO / ?mode=Video 都认）。
+     实际的显示/隐藏全部由 CSS 的 body.video-mode 规则控制，
+     这里只负责给 <body> 挂上这个 class。
+     ============================================================ */
+  const urlParams = new URLSearchParams(location.search);
+  let modeValue = "";
+  // 参数名和参数值都转小写再比，?MODE=Video、?Mode=VIDEO 一律认
+  urlParams.forEach((value, key) => {
+    if (key.trim().toLowerCase() === "mode") modeValue = String(value).trim().toLowerCase();
+  });
+  const isVideoMode = modeValue === "video";
+  document.body.classList.toggle("video-mode", isVideoMode);
+
+  /* ---- 启动自检：题库写错时页面顶部报红条 ---- */
+  const bankErrors = JP.validate();
+  if (bankErrors.length){
+    const box = $("alert");
+    box.hidden = false;
+    box.innerHTML = `<b>题库自检发现 ${bankErrors.length} 处问题：</b>
+      <ul>${bankErrors.map(e => `<li>${e}</li>`).join("")}</ul>`;
+    console.error("[题库自检]", bankErrors);
+  }
+
+  renderCover();
+})();
+</script>
+</body>
+</html>

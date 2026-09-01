@@ -4,7 +4,16 @@
 
 **在线试玩 → https://lyjellie.github.io/jp-learning/**
 
-无依赖、无构建也能跑：把仓库拉下来双击 `index.html` 即可。
+无依赖、无框架：`index.html` 是把 HTML / CSS / JS 全部内联的单文件，拷走双击就能玩。
+
+### 两种版式：URL 暗号
+
+| 网址 | 效果 |
+|---|---|
+| `index.html` | **玩家版**：右侧录屏栏隐藏，游戏区居中占满整个外框 |
+| `index.html?mode=video` | **录屏版**：右侧栏浮现，恢复左右分栏，右边可叠 Live2D / 真人画面 |
+
+参数名和值都不区分大小写（`?MODE=Video` 同样生效）。手机端（≤768px）一律隐藏侧栏并回落为单列，录屏模式也不例外。
 
 ---
 
@@ -33,17 +42,19 @@
 ## 项目结构
 
 ```
-index.html          游戏引擎与样式（日常不用改）
+index.html          ← 构建产物：单文件成品，部署/分享/双击都用它
+src/index.html      源码：游戏引擎与样式（日常不用改）
 data/
   _core.js          假名简写 R() / 大类 PACKS / 题型 TYPES / 注册器 / 自检 / 抽题 / 称号
   workplace.js      職場篇
   survival.js       サバイバル篇
   anime.js          アニメ罠篇
   keigo.js          敬語トラップ篇
-build.mjs           合并成单文件
-dist/index.html     构建产物：单文件版，可直接分享
+build.mjs           src + data → 根目录 index.html
 .nojekyll           让 GitHub Pages 原样托管（否则 _core.js 会被 Jekyll 忽略）
 ```
+
+> 根目录的 `index.html` 是**生成的**，不要直接改它——改 `src/index.html` 或 `data/*.js`，再跑一次 `node build.mjs`。
 
 ## 加一道题
 
@@ -83,6 +94,7 @@ dist/index.html     构建产物：单文件版，可直接分享
 | `badge` | 语体标签（热血 / 敬语 / 伪敬语 / 失礼 …） |
 | `kind` | 配色，按**失礼风险**分：`anime` 红（踩雷）、`keigo` 绿（得体）、`casual` 黄（不理想） |
 | `romaji` | 选填，只给正解注罗马音；`_core.js` 的 `SHOW_ROMAJI` 可一键关闭 |
+| `heat` | 选填，场景标签旁的热度激将文案（如 `🔥 84.2% 答错率的地狱题`）。**是氛围文案，不是真实统计** |
 | `takeaway` | 一句话金句，用于结算页 |
 | `tip` | 黄色进阶框内容 |
 
@@ -97,12 +109,12 @@ dist/index.html     构建产物：单文件版，可直接分享
 
 ## 构建
 
-开发时直接改 `data/*.js` 刷新 `index.html` 就行（`<script src>` 在 `file://` 下正常工作，不用起本地服务器）。
+开发时改 `data/*.js` 或 `src/index.html`，**直接双击 `src/index.html`** 就能看效果（里面引的是 `../data/xxx.js`，相对路径在 `file://` 下正常工作，不用起本地服务器）。
 
-要发给别人或发布单文件版：
+改完要发布：
 
 ```bash
-node build.mjs        # → dist/index.html
+node build.mjs        # src/index.html + data/*.js → 根目录 index.html
 ```
 
-它会把每一行 `<script src="data/*.js">` 原地替换成文件内容，产出一个自包含的 HTML。新增大类时，记得在 `_core.js` 的 `PACKS` 加一行、建同名 `.js`、并在 `index.html` 里加一行 `<script src>`，构建脚本会自动内联。
+它会把每一行 `<script src="../data/*.js">` 原地替换成文件内容，产出一个自包含的 HTML。新增大类时，记得在 `_core.js` 的 `PACKS` 加一行、建同名 `.js`、并在 `src/index.html` 里加一行 `<script src>`，构建脚本会自动内联。

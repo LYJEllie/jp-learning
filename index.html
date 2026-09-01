@@ -58,20 +58,38 @@ rt{
   user-select:none;
 }
 
-/* ---------- 录屏框架：左游戏区 + 右侧栏 ---------- */
+/* ============================================================
+   两种版式，靠 <body class="video-mode"> 切换（JS 读 URL 决定，见文件底部）
+
+   ① 默认（玩家访问 index.html）：右侧栏 display:none，
+      整个外框收窄到 --solo-width，游戏区占满 100% 宽度并居中。
+   ② 录屏模式（index.html?mode=video）：右侧栏浮现，
+      外框拉到 1100px，恢复 16:9 的左右分栏比例。
+   想改单人模式下的卡片宽度，只调 --solo-width 这一个值。
+   ============================================================ */
+:root{ --solo-width:720px; }
+
 .main-wrapper{
   display:flex;
   flex-direction:row;
   width:100%;
-  max-width:1100px;      /* 契合 16:9 的拉伸比例 */
-  height:85vh;           /* 锁死高度，绝不超出屏幕 */
+  max-width:var(--solo-width);   /* 默认：窄框居中 */
+  height:85vh;                   /* 锁死高度，绝不超出屏幕 */
   gap:40px;
   align-items:center;
   justify-content:center;
+  transition:max-width .25s ease;
+}
+body.video-mode .main-wrapper{
+  max-width:1100px;              /* 录屏：契合 16:9 的拉伸比例 */
 }
 
+/* 右侧录屏侧栏：默认整块隐藏，只有 ?mode=video 才出现 */
+.youtube-sidebar{ display:none; }
+body.video-mode .youtube-sidebar{ display:flex; }
+
 .game-zone{
-  flex:1.2;
+  flex:1;                        /* 默认：独占整个外框宽度 */
   height:100%;
   background-color:var(--card);
   border:4px solid var(--ink);
@@ -82,7 +100,31 @@ rt{
   flex-direction:column;
   overflow:hidden;
 }
+body.video-mode .game-zone{ flex:1.2; }   /* 录屏：左侧约占 6 成 */
 .game-zone.is-hit{ animation:shake .45s cubic-bezier(.36,.07,.19,.97) both; }
+
+/* ---------- 底部：累计访问量计数器 ---------- */
+.visit-counter{
+  flex:none;
+  margin-top:12px;
+  padding-top:10px;
+  border-top:2px dashed var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:1px;
+  color:var(--muted);
+}
+.visit-counter__fallback{
+  border:2px solid var(--ink);
+  background:var(--white);
+  box-shadow:2px 2px 0px var(--ink);
+  padding:2px 8px;
+  font-variant-numeric:tabular-nums;
+}
 
 /* 中段内容：只有这里滚动 */
 .game-content-scroll{
@@ -127,11 +169,10 @@ rt{
 }
 .action-hint .jp{ font-family:var(--jp); }
 
-/* ---------- 右侧录屏侧栏 ---------- */
+/* ---------- 右侧录屏侧栏（display 由上面的 video-mode 规则控制） ---------- */
 .youtube-sidebar{
   flex:0.8;
   height:100%;
-  display:flex;
   flex-direction:column;
   justify-content:space-between;
   padding:20px 0;
@@ -373,6 +414,19 @@ rt{
   border-radius:99px;
   padding:5px 14px;
 }
+/* 热度标签：激将文案，勾好胜心 */
+.heat-tag{
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.5px;
+  color:var(--red-deep);
+  background-color:#fff2f3;
+  border:2px solid var(--red);
+  border-radius:99px;
+  padding:4px 10px;
+  white-space:nowrap;
+}
+
 /* 题型：这题在考"说法/习惯/后果" */
 .qtype{
   font-size:11px;
@@ -802,13 +856,17 @@ rt{
     box-shadow:var(--shadow-md);
   }
   .game-content-scroll{ overflow:visible; padding-right:0; }
-  .youtube-sidebar{ display:none; }
+  /* 手机端一律隐藏侧栏，录屏模式也不例外（玩家用手机玩时不该被干扰） */
+  .youtube-sidebar,
+  body.video-mode .youtube-sidebar{ display:none; }
+  body.video-mode .main-wrapper{ max-width:100%; }
   .action-bar{ min-height:0; }
 }
 
-/* 桌面端：大标题由右侧栏承担，卡片内不再重复 */
+/* 桌面端 + 录屏模式下，大标题由右侧栏承担，卡片内不再重复；
+   单人模式（没有侧栏）时照常显示 */
 @media (min-width:769px){
-  .cover-brand{ display:none; }
+  body.video-mode .cover-brand{ display:none; }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -845,6 +903,15 @@ rt{
 
     <!-- 底部固定操作区：开始 / 下一题 / 结算 / 重来 -->
     <div class="action-bar" id="actionBar"></div>
+
+    <!-- 累计访问量计数器：挂件加载失败时自动降级为本地文案 -->
+    <div class="visit-counter">
+      <span>累计访问</span>
+      <img src="https://websiteout.net" alt="Views"
+           style="border: 2px solid #111111; padding: 2px; background: white; box-shadow: 2px 2px 0px #111111; vertical-align: middle;"
+           onerror="this.remove(); document.getElementById('counterFallback').hidden = false;">
+      <span class="visit-counter__fallback" id="counterFallback" hidden>计数器待接入</span>
+    </div>
   </div>
 
   <!-- ========== 右：录屏侧栏（手机端自动隐藏） ========== -->
@@ -866,11 +933,674 @@ rt{
 
 </div>
 
-<script src="data/_core.js"></script>
-<script src="data/workplace.js"></script>
-<script src="data/survival.js"></script>
-<script src="data/anime.js"></script>
-<script src="data/keigo.js"></script>
+<script>
+/* ===== inlined: data/_core.js ===== */
+/* ============================================================
+   题库核心 —— 假名简写 / 大类定义 / 注册器 / 自检 / 抽题
+   题目数据在同目录的 workplace.js · survival.js · anime.js · keigo.js
+   新增一个大类：在 PACKS 里加一行，建一个同名 .js，再去 index.html
+   加一行 <script src="data/xxx.js"></script>（build.mjs 会自动内联）
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+
+  /* ============================================================
+     ★ 题库区 ★  —— 扩充题目只需要改这一段，下面的引擎不用动
+     ------------------------------------------------------------
+     假名写法：R('{漢字|かんじ}をこう{書|か}く')  →  自动生成 <ruby>
+     每题字段：
+       id       唯一编号，前缀 = 大类（w/s/a/k）
+       pack     大类，必须是 PACKS 里已定义的 key
+       level    难度 1~3，同一局里按 1→3 排序出题
+       type     phrase 说法选择 / culture 文化行为 / consequence 后果判断
+       scene    场景地点（显示在顶部小胶囊里）
+       jp / zh  场景日文原文 / 中文对照
+       ask/askCn 设问日文 / 中文
+       options  必须正好 3 个，且**恰好 1 个** ok:true
+                jp/zh 选项与译文；badge 语体标签；
+                kind  失礼风险配色 anime=红(踩雷) keigo=绿(得体) casual=黄(不理想)
+                       ※ 纯知识题三项可同色，避免颜色泄题
+                ok    是否正解；why 解析
+       takeaway 一句话金句（结算页"带走清单"用）
+       tip      进阶补充（黄框）
+     改完刷新页面即可，题库有错会在页面顶部弹红条提示。
+     ============================================================ */
+
+  /* 假名简写：{漢字|かんじ} → <ruby>漢字<rt>かんじ</rt></ruby> */
+  const R = (s) => s.replace(/\{([^|{}]+)\|([^{}]+)\}/g, '<ruby>$1<rt>$2</rt></ruby>');
+
+  /* 场景大类 */
+  const PACKS = {
+    workplace: { label:'職場篇',        cn:'职场敬语' },
+    survival:  { label:'サバイバル篇',  cn:'日常生存' },
+    anime:     { label:'アニメ{罠|わな}篇', cn:'动漫踩雷' },
+    keigo:     { label:'{敬語|けいご}トラップ篇', cn:'敬语陷阱' }
+  };
+
+  /* 题型：显示在场景胶囊旁，提示这题在考什么 */
+  const TYPES = {
+    phrase:      { label:'说法题' },   // 同一个意思，哪种说法得体
+    culture:     { label:'习惯题' },   // 当地规矩该怎么做
+    consequence: { label:'后果题' }    // 照搬动漫会发生什么
+  };
+
+  const ROUND = 3;          // 每局题数
+  const MAX_HP = 3;         // 初始血量
+  const SHOW_ROMAJI = true; // 是否显示正解的罗马音（改 false 即全局关闭）
+
+  /* 全部题目（由各 data 文件 JP.add() 注册进来） */
+  const BANK = [];
+
+  const RANKS = [
+    { min:3, rank:'日语社交达人', win:true,
+      jp:R('{敬語|けいご}マスター{認定|にんてい}！'),
+      note:'三个场面全部安全通过。你已经能把热血留在屏幕里，把敬语带进现场——这正是日本人最看重的分寸感。' },
+    { min:2, rank:'半熟社会人', win:true,
+      jp:R('あと{一歩|いっぽ}、{惜|お}しい！'),
+      note:'大方向没错，偶尔会漏出动漫腔。记住：敬语的核心不是背句子，而是随时判断“对方是谁”。' },
+    { min:1, rank:'热血预备役', win:false,
+      jp:R('{気持|きも}ちは{本物|ほんもの}、{言葉|ことば}が{課題|かだい}。'),
+      note:'气势满分，措辞扣分。先把「承知いたしました」「お任せください」「お疲れ様です」这三句练成条件反射吧。' },
+    { min:0, rank:'动漫中毒患者', win:false,
+      jp:R('{現実世界|げんじつせかい}へようこそ。'),
+      note:'你的日语全部来自番剧——听力很强，场合感为零。好消息是：敬语是套路，套路可以速成。再来一次。' }
+  ];
+
+  /* ========== 题库自检：字段缺失 / 正解数量 / id 重复 ========== */
+  function validateBank(bank){
+    const errs = [], ids = new Set(), KINDS = new Set(['anime','keigo','casual']);
+    bank.forEach((q, i) => {
+      const at = `第${i + 1}题（${q.id || '缺 id'}）`;
+      ['id','pack','scene','jp','zh','ask','askCn','takeaway','tip'].forEach(f => {
+        if (!q[f]) errs.push(`${at}：缺字段 ${f}`);
+      });
+      if (q.id){
+        if (ids.has(q.id)) errs.push(`${at}：id 与前面重复`);
+        ids.add(q.id);
+      }
+      if (!PACKS[q.pack]) errs.push(`${at}：pack「${q.pack}」未在 PACKS 中定义`);
+      if (!(q.level >= 1 && q.level <= 3)) errs.push(`${at}：level 必须是 1~3`);
+      if (!TYPES[q.type]) errs.push(`${at}：type「${q.type}」不合法`);
+      if (!Array.isArray(q.options) || q.options.length !== 3){
+        errs.push(`${at}：必须正好 3 个选项`);
+        return;
+      }
+      const rights = q.options.filter(o => o.ok).length;
+      if (rights !== 1) errs.push(`${at}：正解有 ${rights} 个，必须恰好 1 个`);
+      q.options.forEach((o, j) => {
+        const tag = `${at} 选项${"ABC"[j]}`;
+        ['jp','zh','badge','why'].forEach(f => { if (!o[f]) errs.push(`${tag}：缺字段 ${f}`); });
+        if (!KINDS.has(o.kind)) errs.push(`${tag}：kind「${o.kind}」不合法（只能 anime/keigo/casual）`);
+      });
+    });
+    Object.keys(PACKS).forEach(p => {
+      if (!bank.some(q => q.pack === p)) errs.push(`大类「${p}」一道题都没有，抽题会漏空`);
+    });
+    if (bank.length < ROUND) errs.push(`题库只有 ${bank.length} 题，少于每局需要的 ${ROUND} 题`);
+    return errs;
+  }
+
+  /* ========== 抽题：不同大类各抽 1 题 → 按难度升序 → 尽量避开上一局 ========== */
+  let lastIds = new Set();
+
+  const shuffle = (arr) => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  function drawSet(){
+    const packs = shuffle(Object.keys(PACKS)).filter(p => BANK.some(q => q.pack === p));
+    const picked = [];
+    for (const p of packs){
+      if (picked.length >= ROUND) break;
+      const pool = BANK.filter(q => q.pack === p);
+      const fresh = pool.filter(q => !lastIds.has(q.id));
+      const from = fresh.length ? fresh : pool;
+      picked.push(from[Math.floor(Math.random() * from.length)]);
+    }
+    // 大类不够时，用剩下的题补满
+    if (picked.length < ROUND){
+      const rest = shuffle(BANK.filter(q => !picked.includes(q)));
+      picked.push(...rest.slice(0, ROUND - picked.length));
+    }
+    picked.sort((a, b) => a.level - b.level);
+    lastIds = new Set(picked.map(q => q.id));
+    return picked;
+  }
+
+  root.JP = {
+    R, PACKS, TYPES, ROUND, MAX_HP, SHOW_ROMAJI, BANK, RANKS,
+    /* 注册一批题目；忘写 pack 字段时按文件所属大类自动补上 */
+    add(pack, list) {
+      list.forEach((q) => { if (!q.pack) q.pack = pack; BANK.push(q); });
+    },
+    validate: () => validateBank(BANK),
+    draw: () => drawSet()
+  };
+
+})(window);
+</script>
+<script>
+/* ===== inlined: data/workplace.js ===== */
+/* ============================================================
+   職場篇（6 题）—— 只放数据，加题直接往数组里追加
+   假名写法：{漢字|かんじ}     字段说明见 data/_core.js
+   ============================================================ */
+(function (JP) {
+  "use strict";
+  const R = JP.R;
+
+  JP.add('workplace', [
+  {
+    id:'w-01', pack:'workplace', level:1, type:'phrase',
+    heat:'🔥 62.1% 的人栽在这一句',
+    scene:R('{会議室|かいぎしつ}'),
+    jp:R('{部長|ぶちょう}が{新|あたら}しい{案件|あんけん}を{一通|ひととお}り{説明|せつめい}し{終|お}えた。{全員|ぜんいん}があなたを{向|む}いている。あなたは<b>「我明白了」</b>と{言|い}いたい。'),
+    zh:'部长把新案子从头到尾讲完了。所有人都看向你——你想说“我明白了”。',
+    ask:R('{現実|げんじつ}の{職場|しょくば}では、どう{言|い}う？'),
+    askCn:'在真实职场里，你该说哪一句？',
+    options:[
+      { jp:R('{分|わ}かった！'), zh:'知道了！（简体形）', badge:'热血', kind:'anime', ok:false,
+        why:'简体形只能对同辈或晚辈用。对上司说这句，等于拍着老板肩膀说“行了我懂”。' },
+      { jp:R('{承知|しょうち}いたしました。'), zh:'我明白了（谦让语）', badge:'敬语', kind:'keigo', ok:true, romaji:'shōchi itashimashita',
+        why:R('「{承知|しょうち}する」的谦让语形，是接受上级指示时最稳妥的答复。') },
+      { jp:'はいはい、オッケーっす。', zh:'好好好，OK啦', badge:'伪敬语', kind:'casual', ok:false,
+        why:'「っす」是「です」的偷懒缩略，听着像敬语其实不是；再配上重复两遍的「はいはい」，敷衍感拉满。' }
+    ],
+    takeaway:'对上司的“我明白了”，标准答案是「承知いたしました」',
+    tip:R('同场景还可以说 <span class="highlight">かしこまりました</span>（更郑重，多用于服务业与对客）。反过来，对同期同事说「{承知|しょうち}いたしました」又会显得见外——敬语是有射程的。')
+  },
+  {
+    id:'w-02', pack:'workplace', level:2, type:'phrase',
+    heat:'⚔️ 57.8% 的人答错',
+    scene:R('{先輩|せんぱい}のデスク{前|まえ}'),
+    jp:R('{先輩|せんぱい}から{資料|しりょう}{整理|せいり}の{仕事|しごと}を{頼|たの}まれた。{胸|むね}が{熱|あつ}くなって、<b>「交给我吧」</b>と{言|い}いたい。'),
+    zh:'前辈把整理资料的活儿托付给你。你热血上头，想说“交给我吧”。',
+    ask:R('この「{任|まか}せろ」、{社会人版|しゃかいじんばん}は？'),
+    askCn:'这句“交给我”的社会人版本是哪一个？',
+    options:[
+      { jp:R('{俺|おれ}に{任|まか}せろ！'), zh:'交给我！（少年漫主角）', badge:'热血', kind:'anime', ok:false,
+        why:R('命令形＋「{俺|おれ}」，是少年漫画拍胸脯的台词。在办公室说出来，前辈会先愣三秒。') },
+      { jp:R('お{任|まか}せください。'), zh:'请放心交给我（郑重/谦让表达）', badge:'敬语', kind:'keigo', ok:true, romaji:'o-makase kudasai',
+        why:'接活儿时的固定郑重说法，字面是“请您放心交给我”——把工作揽过来，同时把自己的姿态放低。' },
+      { jp:R('まぁ{大丈夫|だいじょうぶ}っしょ。'), zh:'应该没问题吧', badge:'随口', kind:'casual', ok:false,
+        why:'「っしょ」是「でしょう」的口语缩约形，听起来像“大概行吧”，责任感直接归零。' }
+    ],
+    takeaway:'接活儿说「お任せください」，别用命令形的「任せろ」',
+    tip:R('想再稳一点，可以加一句 <span class="highlight">{精一杯|せいいっぱい}やらせていただきます</span>（我会全力去做）。「やらせていただく」用多了会啰嗦，但在接活儿这一刻正合适。')
+  },
+  {
+    id:'w-03', pack:'workplace', level:2, type:'phrase',
+    heat:'💀 68.4% 的人第一句就说错',
+    scene:R('{朝|あさ}の{打|う}ち{合|あ}わせ'),
+    jp:R('{電車|でんしゃ}が{遅|おく}れ、{五分|ごふん}{遅刻|ちこく}して{会議室|かいぎしつ}のドアを{開|あ}けた。{六|むっ}つの{視線|しせん}がこちらを{向|む}く。'),
+    zh:'电车延误，你迟到五分钟推开会议室的门，六道目光一齐看过来。',
+    ask:R('この{一言|ひとこと}で、{印象|いんしょう}が{決|き}まる。'),
+    askCn:'这一句话，决定别人对你的印象。',
+    options:[
+      { jp:R('すまねぇ、{遅|おく}れた！'), zh:'抱歉，我迟了！', badge:'热血', kind:'anime', ok:false,
+        why:'「すまねぇ」是男性粗放口语，动漫里很帅，会议室里像是走错了片场。' },
+      { jp:R('ごめんごめん、{道|みち}が{混|こ}んでてさ。'), zh:'抱歉抱歉，路上太堵了嘛', badge:'找借口', kind:'casual', ok:false,
+        why:'道歉轻飘飘，还先讲理由。日本职场的顺序是：先道歉，别人问了再解释。' },
+      { jp:R('{遅|おく}れてしまい、{申|もう}し{訳|わけ}ございません。'), zh:'迟到了，非常抱歉', badge:'敬语', kind:'keigo', ok:true, romaji:'okurete shimai, mōshiwake gozaimasen',
+        why:R('「{申|もう}し{訳|わけ}ございません」是最正式的道歉；「〜てしまい」承认了这是自己造成的结果。') }
+    ],
+    takeaway:'迟到先道歉再解释，用「申し訳ございません」不用「すみません」',
+    tip:R('迟到时别用 <span class="highlight">すみません</span>——那更接近“不好意思／劳驾”，分量太轻。真出了事，用 <span class="highlight">{申|もう}し{訳|わけ}ございません</span>，并且不要抢在道歉前解释原因。')
+  },
+  {
+    id:'w-04', pack:'workplace', level:1, type:'phrase',
+    heat:'📧 49.6% 的人不知道写什么',
+    scene:R('{取引先|とりひきさき}へのメール'),
+    jp:R('{取引先|とりひきさき}の{担当者|たんとうしゃ}に、{自分|じぶん}から{初|はじ}めてメールを{送|おく}る。{本題|ほんだい}に{入|はい}る{前|まえ}の{一行目|いちぎょうめ}——'),
+    zh:'第一次主动给客户负责人发邮件。进入正文之前，第一行——',
+    ask:R('ビジネスメールの{第一行|だいいちぎょう}は？'),
+    askCn:'商务邮件的第一行该怎么写？',
+    options:[
+      { jp:R('こんにちは、{田中|たなか}です。'), zh:'你好，我是田中', badge:'日常', kind:'casual', ok:false,
+        why:'日常寒暄直接搬进商务邮件，读起来像私信，缺了商务场合该有的分量。' },
+      { jp:R('いつもお{世話|せわ}になっております。'), zh:'一直承蒙关照', badge:'定型句', kind:'keigo', ok:true, romaji:'itsumo osewa ni natte orimasu',
+        why:'商务邮件与电话的固定开场，等于"你好"的商务版——哪怕是第一次联系也照说不误。' },
+      { jp:'どうも、はじめまして。', zh:'嗨，初次见面', badge:'轻率', kind:'anime', ok:false,
+        why:'「どうも」太轻，写在邮件开头像随口打了个招呼。' }
+    ],
+    takeaway:'商务邮件第一行永远是「いつもお世話になっております」',
+    tip:R('对外用 <span class="highlight">お{世話|せわ}になっております</span>，对内用 <span class="highlight">お{疲|つか}れ{様|さま}です</span>——两句分工明确，走错门就露怯。')
+  },
+  {
+    id:'w-05', pack:'workplace', level:2, type:'phrase',
+    heat:'🙈 71.3% 的人选择硬着头皮点头',
+    scene:R('{部長|ぶちょう}のデスク{前|まえ}'),
+    jp:R('{指示|しじ}を{受|う}けたが、{肝心|かんじん}の{納期|のうき}が{聞|き}き{取|と}れなかった。{部長|ぶちょう}はもう{次|つぎ}の{話|はなし}に{移|うつ}ろうとしている。'),
+    zh:'接受指示时，最关键的交期没听清。部长已经准备说下一件事了。',
+    ask:R('どう{聞|き}き{返|かえ}す？'),
+    askCn:'该怎么反问？',
+    options:[
+      { jp:R('え、{何|なん}ですか？'), zh:'啊？什么？', badge:'唐突', kind:'casual', ok:false,
+        why:'「え」是下意识的惊讶声，直接甩回去显得根本没在听。' },
+      { jp:R('{恐|おそ}れ{入|い}りますが、もう{一度|いちど}お{願|ねが}いできますでしょうか。'), zh:'不好意思，能否再讲一遍', badge:'缓冲句', kind:'keigo', ok:true, romaji:'osoreirimasu ga, mō ichido onegai dekimasu deshō ka',
+        why:R('「{恐|おそ}れ{入|い}りますが」是请求前的缓冲垫，把"我没听清"包装成"麻烦您"。') },
+      { jp:'はい、わかりました。', zh:'好的，我明白了', badge:'装懂', kind:'anime', ok:false,
+        why:'没听清却点头，是职场最贵的一种沉默——做错的代价远高于当场问一句。' }
+    ],
+    takeaway:'没听清就当场问，起手用「恐れ入りますが」',
+    tip:R('同类缓冲句还有 <span class="highlight">{申|もう}し{訳|わけ}ございませんが</span>、<span class="highlight">お{手数|てすう}ですが</span>。日语的请求几乎都要先垫一句，直接开口才显得唐突。')
+  },
+  {
+    id:'w-06', pack:'workplace', level:3, type:'phrase',
+    heat:'💀 79.5% 答错率的汇报题',
+    scene:R('{週明|しゅうあ}けのオフィス'),
+    jp:R('{部長|ぶちょう}に{聞|き}かれた——「{例|れい}の{件|けん}、どうなってる？」{資料|しりょう}は{半分|はんぶん}しか{終|お}わっていない。'),
+    zh:'部长问你“上次那件事怎么样了？”——而资料只做完一半。',
+    ask:R('{報告|ほうこく}の{第一声|だいいっせい}は？'),
+    askCn:'汇报的第一句该怎么说？',
+    options:[
+      { jp:'まだです。', zh:'还没好', badge:'禁句', kind:'anime', ok:false,
+        why:'只给结论不给信息，对方还得再追问一轮，是最不受欢迎的回答。' },
+      { jp:R('{現在|げんざい}{半分|はんぶん}まで{進|すす}んでおります。{本日中|ほんじつじゅう}に{仕上|しあ}げます。'), zh:'目前进行到一半，今天之内完成', badge:'报告体', kind:'keigo', ok:true, romaji:'genzai hanbun made susunde orimasu',
+        why:'进度＋期限一次给全，对方不用追问——这就是日本职场天天挂在嘴边的「報・連・相」。' },
+      { jp:R('あー、それ{今|いま}やってます。'), zh:'啊，那个我在弄', badge:'随口', kind:'casual', ok:false,
+        why:'语气随便，而且“在弄”几乎没有信息量。' }
+    ],
+    takeaway:'汇报别只说「まだです」，进度＋期限一次给全',
+    tip:R('日本职场把 <span class="highlight">{報告|ほうこく}・{連絡|れんらく}・{相談|そうだん}</span>（ほうれんそう）当基本功。坏消息尤其要早报——晚报比出错本身更致命。')
+  }
+  ]);
+
+})(window.JP);
+</script>
+<script>
+/* ===== inlined: data/survival.js ===== */
+/* ============================================================
+   サバイバル篇（6 题）—— 只放数据，加题直接往数组里追加
+   假名写法：{漢字|かんじ}     字段说明见 data/_core.js
+   ============================================================ */
+(function (JP) {
+  "use strict";
+  const R = JP.R;
+
+  JP.add('survival', [
+  {
+    id:'s-01', pack:'survival', level:1, type:'phrase',
+    heat:'🏪 43.7% 的人第一次都说错',
+    scene:R('{駅前|えきまえ}のコンビニ'),
+    jp:R('レジで{店員|てんいん}が{弁当|べんとう}を{指|さ}して{言|い}う——「お{弁当|べんとう}、{温|あたた}めますか？」あなたは{温|あたた}めてほしくない。'),
+    zh:'收银台前，店员指着便当问“要加热吗？”你不想加热。',
+    ask:R('{一番|いちばん}スマートな{断|ことわ}り{方|かた}は？'),
+    askCn:'最自然的拒绝方式是哪一句？',
+    options:[
+      { jp:R('{大丈夫|だいじょうぶ}です。'), zh:'不用了，谢谢', badge:'地道', kind:'keigo', ok:true, romaji:'daijōbu desu',
+        why:'日本人拒绝时几乎不说“不”。「大丈夫です」＋轻轻摆手，店员秒懂。' },
+      { jp:R('{温|あたた}めないでください。'), zh:'请不要加热', badge:'生硬', kind:'casual', ok:false,
+        why:'语法完全正确，但「〜ないでください」是下达指令的口气，听起来像在制止对方。' },
+      { jp:'いりません。', zh:'我不要', badge:'冷硬', kind:'anime', ok:false,
+        why:'直译“不需要”，没有缓冲，语气接近甩脸色。' }
+    ],
+    takeaway:'袋子、加热、小票——拒绝三连全靠「大丈夫です」＋摆手',
+    tip:R('注意这句是<span class="highlight">场合依赖</span>的：在便利店它是万能拒绝，但当别人主动提出帮忙时，同一句「{大丈夫|だいじょうぶ}です」会被听成“不用你帮”。')
+  },
+  {
+    id:'s-02', pack:'survival', level:1, type:'culture',
+    heat:'🍢 55.2% 的人以为被宰了',
+    scene:R('{居酒屋|いざかや}のカウンター'),
+    jp:R('{席|せき}に{着|つ}いて{注文|ちゅうもん}する{前|まえ}に、{頼|たの}んでいない{小鉢|こばち}が{出|で}てきた。しかも{会計|かいけい}に{金額|きんがく}が{載|の}っている。'),
+    zh:'刚坐下、还没点单，就端上一碟没点过的小菜，结账时还要收钱。',
+    ask:R('これは{何|なに}？どうする？'),
+    askCn:'这是什么？该怎么办？',
+    options:[
+      { jp:R('「{頼|たの}んでいません」と{返|かえ}す。'), zh:'退回去说“我没点”', badge:'踩雷', kind:'anime', ok:false,
+        why:'这是全店统一提供的「お通し」，退回去只会让店员为难，也解释不清。' },
+      { jp:R('そのまま{食|た}べる。「お{通|とお}し」という{席料|せきりょう}。'), zh:'直接吃掉，这是“お通し”座位费', badge:'得体', kind:'keigo', ok:true, romaji:'otōshi',
+        why:'居酒屋的行业惯例，相当于座位费／开台费，一般 300～500 日元，入乡随俗即可。' },
+      { jp:R('{写真|しゃしん}を{撮|と}ってSNSで{晒|さら}す。'), zh:'拍照发网上吐槽黑店', badge:'误会', kind:'casual', ok:false,
+        why:'不是宰客，是明码标价的行业规矩，多数店门口或菜单上都有写。' }
+    ],
+    takeaway:'居酒屋的お通し是座位费，不是宰客',
+    tip:R('想先确认，可以问 <span class="highlight">これはお{通|とお}しですか？</span>。极少数店能说「お{通|とお}しは{結構|けっこう}です」谢绝，但连锁店基本不接受——当成入场费更省心。')
+  },
+  {
+    id:'s-03', pack:'survival', level:2, type:'phrase',
+    heat:'🍜 61.9% 的人点反了硬度',
+    scene:R('{博多|はかた}ラーメンの{店|みせ}'),
+    jp:R('{券売機|けんばいき}で{食券|しょっけん}を{買|か}うと、{店員|てんいん}に{聞|き}かれた——「{麺|めん}の{硬|かた}さは？」あなたはコシの{強|つよ}い{麺|めん}が{好|す}きだ。'),
+    zh:'买完餐券，店员问你面条硬度。你喜欢有嚼劲的硬面。',
+    ask:R('どう{答|こた}える？'),
+    askCn:'这时候该报哪个词？',
+    options:[
+      { jp:R('{柔|やわ}らかめ'), zh:'偏软', badge:'软', kind:'casual', ok:false,
+        why:'正好相反，这是煮得更软的档位，适合小孩和不爱嚼劲的人。' },
+      { jp:R('{普通|ふつう}'), zh:'普通', badge:'标准', kind:'casual', ok:false,
+        why:'不出错，但也吃不到博多拉面最招牌的硬度口感。' },
+      { jp:'かため', zh:'偏硬', badge:'硬', kind:'casual', ok:true, romaji:'katame',
+        why:'博多拉面细面易坨，点「かため」既有嚼劲，吃到最后也不容易糊。' }
+    ],
+    takeaway:'硬度往左走：バリカタ ＞ かため ＞ 普通 ＞ 柔らかめ',
+    tip:R('还想更硬有 <span class="highlight">バリカタ</span>、<span class="highlight">ハリガネ</span>，甚至{粉|こな}おとし。面吃完了还能喊 <span class="highlight">{替玉|かえだま}お{願|ねが}いします</span>（再来一份面）。')
+  },
+  {
+    id:'s-04', pack:'survival', level:1, type:'phrase',
+    heat:'🚶 38.4% 的人一开口就错',
+    scene:R('{渋谷|しぶや}の{交差点|こうさてん}'),
+    jp:R('スマホの{地図|ちず}を{見|み}ても{現在地|げんざいち}が{分|わ}からない。{通|とお}りかかった{人|ひと}に{道|みち}を{聞|き}きたい。'),
+    zh:'看着手机地图也搞不清自己在哪，想拦下路过的人问路。',
+    ask:R('{最初|さいしょ}の{一言|ひとこと}は？'),
+    askCn:'开口第一句该说什么？',
+    options:[
+      { jp:'こんにちは！', zh:'你好！', badge:'突兀', kind:'casual', ok:false,
+        why:'语法没错，但对完全陌生的人直接问好，对方会先愣一下——这句是给已经认识的人的。' },
+      { jp:'すみません。', zh:'不好意思，打扰一下', badge:'万能', kind:'keigo', ok:true, romaji:'sumimasen',
+        why:'相当于英文的 Excuse me。搭话、让路、叫服务员，全靠这一句起手。' },
+      { jp:R('ちょっと、{君|きみ}！'), zh:'喂，你！', badge:'失礼', kind:'anime', ok:false,
+        why:'「ちょっと」＋第二人称是叫住下属的口气，对陌生人非常冒犯。' }
+    ],
+    takeaway:'搭话、让路、叫服务员——开口第一句永远是「すみません」',
+    tip:R('后面接 <span class="highlight">{道|みち}をお{聞|き}きしてもいいですか</span>（能问个路吗）更完整。日本人一天要说几十次すみません，它同时承担"抱歉""谢谢""打扰了"三种意思。')
+  },
+  {
+    id:'s-05', pack:'survival', level:1, type:'culture',
+    heat:'♨️ 52.6% 的外国人踩过这个雷',
+    scene:R('{温泉旅館|おんせんりょかん}の{大浴場|だいよくじょう}'),
+    jp:R('{脱衣所|だついじょ}で{服|ふく}を{脱|ぬ}ぎ、{小|ちい}さいタオルを{持|も}って{浴場|よくじょう}へ。{目|め}の{前|まえ}に{湯船|ゆぶね}がある。'),
+    zh:'在更衣室脱好衣服，拿着小毛巾走进浴场，眼前就是浴池。',
+    ask:R('まず{何|なに}をする？'),
+    askCn:'第一步该做什么？',
+    options:[
+      { jp:R('そのまま{湯船|ゆぶね}に{入|はい}る。'), zh:'直接下池', badge:'大忌', kind:'anime', ok:false,
+        why:'浴池是所有人共用的热水，不冲洗就下去是最被讨厌的行为。' },
+      { jp:R('{洗|あら}い{場|ば}で{体|からだ}を{流|なが}してから{入|はい}る。'), zh:'先在洗浴区冲干净再下池', badge:'铁律', kind:'keigo', ok:true, romaji:'karada o nagashite kara hairu',
+        why:R('这叫「かけ{湯|ゆ}」，先冲掉汗和污垢再入浴，是温泉与澡堂的第一条规矩。') },
+      { jp:R('タオルを{湯|ゆ}に{浸|ひた}して{涼|すず}む。'), zh:'把毛巾泡进热水里降温', badge:'大忌', kind:'anime', ok:false,
+        why:'毛巾绝对不能下水，通常叠好放在头上，或搁在池边。' }
+    ],
+    takeaway:'温泉铁律：先冲洗再下水，毛巾绝不入池',
+    tip:R('小毛巾只用来擦身和遮挡。{長|なが}い{髪|かみ}要扎起来，头发同样不能碰到水面——这两条比"不能有纹身"更常被外国人踩。')
+  },
+  {
+    id:'s-06', pack:'survival', level:2, type:'culture',
+    heat:'💴 58.3% 的人喊错了',
+    scene:R('{定食屋|ていしょくや}のテーブル'),
+    jp:R('ランチを{食|た}べ{終|お}わった。テーブルの{端|はし}には{伝票|でんぴょう}が{置|お}かれている。'),
+    zh:'午饭吃完了，桌角放着一张账单。',
+    ask:R('お{会計|かいけい}、どうする？'),
+    askCn:'该怎么结账？',
+    options:[
+      { jp:'チェック！', zh:'Check！（举手喊）', badge:'海外风', kind:'anime', ok:false,
+        why:'英语圈的习惯，日本店员听不懂，喊出来只会引来一圈目光。' },
+      { jp:R('{伝票|でんぴょう}を{持|も}ってレジへ。「お{会計|かいけい}お{願|ねが}いします。」'), zh:'拿账单到收银台说“麻烦结账”', badge:'标准', kind:'keigo', ok:true, romaji:'okaikei onegai shimasu',
+        why:'日本多数餐厅不在餐桌结账，拿着伝票走到收银台才是标准流程。' },
+      { jp:R('{店員|てんいん}を{呼|よ}んで「いくら？」'), zh:'叫来店员问“多少钱？”', badge:'生硬', kind:'casual', ok:false,
+        why:'省掉了敬体，像在讨价还价；而且多数店本来也不在桌边收钱。' }
+    ],
+    takeaway:'拿着伝票走到收银台，说「お会計お願いします」',
+    tip:R('桌上有伝票就自己拿去レジ；没有的话到门口报座位号。真需要桌边买单的店，店员会主动过来——不用自己喊。')
+  }
+  ]);
+
+})(window.JP);
+</script>
+<script>
+/* ===== inlined: data/anime.js ===== */
+/* ============================================================
+   アニメ罠篇（6 题）—— 只放数据，加题直接往数组里追加
+   假名写法：{漢字|かんじ}     字段说明见 data/_core.js
+   ============================================================ */
+(function (JP) {
+  "use strict";
+  const R = JP.R;
+
+  JP.add('anime', [
+  {
+    id:'a-01', pack:'anime', level:1, type:'consequence',
+    heat:'📺 47.2% 的人以为这样很帅',
+    scene:R('{初対面|しょたいめん}のあいさつ'),
+    jp:R('アニメの{主人公|しゅじんこう}は{相手|あいて}を「お{前|まえ}」と{呼|よ}ぶ。カッコいいので、あなたも{初対面|しょたいめん}の{相手|あいて}に{使|つか}ってみた。'),
+    zh:'动漫主角管对方叫“お前”，你觉得帅，于是对初次见面的人也这么叫了。',
+    ask:R('{相手|あいて}はどう{感|かん}じる？'),
+    askCn:'对方会怎么想？',
+    options:[
+      { jp:R('「{熱血|ねっけつ}でカッコいい」と{思|おも}われる。'), zh:'觉得你热血又帅气', badge:'幻想', kind:'anime', ok:false,
+        why:'那是番剧滤镜。现实里对方只会觉得你没大没小。' },
+      { jp:R('{強|つよ}い{挑発|ちょうはつ}・{見下|みくだ}しと{受|う}け{取|と}られる。'), zh:'被当成挑衅和轻蔑', badge:'现实', kind:'keigo', ok:true,
+        why:'「お前」自带居高临下的上下关系，对不熟的人使用是明确的冒犯，甚至可能引发冲突。' },
+      { jp:R('{普通|ふつう}の{口語|こうご}なので{問題|もんだい}ない。'), zh:'普通口语，没问题', badge:'误解', kind:'casual', ok:false,
+        why:'它只在关系极近的同辈、或长辈对晚辈之间才成立。' }
+    ],
+    takeaway:'现实里称呼别人只有一个公式：姓氏 ＋ さん',
+    tip:R('「お{前|まえ}」「あんた」「{君|きみ}」都带上下关系。更安全的是<span class="highlight">干脆不用第二人称</span>：知道姓氏就「{田中|たなか}さん」，不知道就用「すみません」搭话——日语里省略“你”才是常态。')
+  },
+  {
+    id:'a-02', pack:'anime', level:2, type:'phrase',
+    heat:'⚡ 64.8% 的人答错',
+    scene:R('{取引先|とりひきさき}へ{出発|しゅっぱつ}'),
+    jp:R('{先輩|せんぱい}と{一緒|いっしょ}に{取引先|とりひきさき}へ{向|む}かう{時間|じかん}になった。{声|こえ}をかけるのはあなたの{番|ばん}だ。'),
+    zh:'和前辈一起出发去客户那边的时间到了，该你开口招呼。',
+    ask:R('アニメなら「{行|い}くぞ！」。{現実|げんじつ}では？'),
+    askCn:'动漫里喊“行くぞ！”，现实中该怎么说？',
+    options:[
+      { jp:R('{行|い}くぞ！'), zh:'走了！', badge:'热血', kind:'anime', ok:false,
+        why:'命令形＋「ぞ」，只有主角对伙伴喊才成立，对前辈说等于反过来指挥对方。' },
+      { jp:R('そろそろ{行|い}きましょうか。'), zh:'差不多该出发了吧', badge:'得体', kind:'keigo', ok:true, romaji:'sorosoro ikimashō ka',
+        why:'「そろそろ」把催促包装成商量，「〜ましょうか」再降一度语气，是职场最常用的出发信号。' },
+      { jp:R('{早|はや}く{早|はや}く！'), zh:'快点快点！', badge:'失礼', kind:'casual', ok:false,
+        why:'直接催人，对上级和前辈都属于越界。' }
+    ],
+    takeaway:'催人出发说「そろそろ行きましょうか」，「そろそろ」是万能缓冲垫',
+    tip:R('「そろそろ」还能用来{結|むす}束场合：聚餐想撤时说 <span class="highlight">そろそろ{失礼|しつれい}します</span>，比直接说“我要走了”柔和得多。')
+  },
+  {
+    id:'a-03', pack:'anime', level:1, type:'phrase',
+    heat:'🎬 41.5% 的人收尾说错',
+    scene:R('{初出社|はつしゅっしゃ}の{朝|あさ}'),
+    jp:R('{入社|にゅうしゃ}{初日|しょにち}、{部署|ぶしょ}のみんなの{前|まえ}で{自己紹介|じこしょうかい}をする。アニメの{主人公|しゅじんこう}なら「よろしくな！」だ。'),
+    zh:'入职第一天，在部门全体面前做自我介绍。换成动漫主角会说“よろしくな！”。',
+    ask:R('{現実|げんじつ}の{締|し}めくくりは？'),
+    askCn:'现实中该怎么收尾？',
+    options:[
+      { jp:'よろしくな！', zh:'多关照啦！', badge:'热血', kind:'anime', ok:false,
+        why:'「な」是对同辈或晚辈的亲昵语尾，第一天就这么说会显得没分寸。' },
+      { jp:R('よろしくお{願|ねが}いいたします。'), zh:'请多多关照', badge:'得体', kind:'keigo', ok:true, romaji:'yoroshiku onegai itashimasu',
+        why:'自我介绍的固定收尾。「お願いいたします」比「お願いします」再郑重一档，适合初次见面。' },
+      { jp:'どうも。', zh:'嗯，你好', badge:'敷衍', kind:'casual', ok:false,
+        why:'「どうも」是万能招呼，但单独用非常轻，正式场合像敷衍了事。' }
+    ],
+    takeaway:'自我介绍的收尾永远是「よろしくお願いいたします」',
+    tip:R('「よろしく」单说只能用于同辈；加上「お{願|ねが}いします」才成句，再升一级就是「お{願|ねが}いいたします」。邮件结尾也是同一句。')
+  },
+  {
+    id:'a-04', pack:'anime', level:2, type:'phrase',
+    heat:'🎤 66.7% 的人第一人称用错',
+    scene:R('{面接|めんせつ}{会場|かいじょう}'),
+    jp:R('{面接官|めんせつかん}に「{自己紹介|じこしょうかい}をお{願|ねが}いします」と{言|い}われた。アニメの{主人公|しゅじんこう}なら、{一人称|いちにんしょう}はもちろん「{俺|おれ}」だ。'),
+    zh:'面试官请你做自我介绍。换成动漫主角，第一人称当然是"俺"。',
+    ask:R('この{場|ば}の{一人称|いちにんしょう}は？'),
+    askCn:'这个场合该用哪个"我"？',
+    options:[
+      { jp:R('{俺|おれ}'), zh:'俺（男性粗放）', badge:'热血', kind:'anime', ok:false,
+        why:'番剧主角标配，但在面试里说出口，等于当场减分。' },
+      { jp:'わたくし', zh:'わたくし（最郑重）', badge:'郑重', kind:'keigo', ok:true, romaji:'watakushi',
+        why:R('「{私|わたし}」的最郑重读法，面试、商务致辞、对客户时使用，男女通用。') },
+      { jp:R('{僕|ぼく}'), zh:'僕（男性偏软）', badge:'偏私人', kind:'casual', ok:false,
+        why:'比「俺」礼貌，但仍偏私人、偏年少，正式面试里撑不住场面。' }
+    ],
+    takeaway:'正式场合的"我"：わたくし ＞ わたし ＞ 僕 ＞ 俺',
+    tip:R('同一个「{私|わたし}」，郑重时读 <span class="highlight">わたくし</span>，日常读 <span class="highlight">わたし</span>。而日语能省则省——很多时候干脆不说主语才最自然。')
+  },
+  {
+    id:'a-05', pack:'anime', level:2, type:'phrase',
+    heat:'😤 73.9% 的人忍不住说错',
+    scene:R('オフィスの{隣|となり}の{席|せき}'),
+    jp:R('{隣|となり}の{同僚|どうりょう}の{電話|でんわ}の{声|こえ}が{大|おお}きく、{集中|しゅうちゅう}できない。アニメなら「うるさい！」と{叫|さけ}ぶ{場面|ばめん}だ。'),
+    zh:'邻座同事打电话声音很大，你没法集中。动漫里这时该吼一句“うるさい！”。',
+    ask:R('{現実|げんじつ}では、どう{頼|たの}む？'),
+    askCn:'现实中该怎么请对方小声？',
+    options:[
+      { jp:'うるさい！', zh:'吵死了！', badge:'骂人', kind:'anime', ok:false,
+        why:'「うるさい」是直接的斥责，说出口基本等于宣战。' },
+      { jp:R('{申|もう}し{訳|わけ}ないのですが、{少|すこ}し{声|こえ}を{落|お}としていただけますか。'), zh:'不好意思，能稍微小声一点吗', badge:'依赖形', kind:'keigo', ok:true, romaji:'sukoshi koe o otoshite itadakemasu ka',
+        why:R('「〜していただけますか」是最常用的请求句式，把命令变成请求，还给对方留了拒绝的余地。') },
+      { jp:R('ちょっと{静|しず}かに。'), zh:'安静点', badge:'命令', kind:'casual', ok:false,
+        why:'省掉了请求形，本质还是命令，只是音量小了一点。' }
+    ],
+    takeaway:'请人做事用「〜していただけますか」，别用命令形',
+    tip:R('再软一档是 <span class="highlight">〜していただけると{助|たす}かります</span>（您能…就帮大忙了）。日语的请求越拐弯越礼貌，这点和中文正好相反。')
+  },
+  {
+    id:'a-06', pack:'anime', level:1, type:'phrase',
+    heat:'👏 59.4% 的人夸错了',
+    scene:R('{取引先|とりひきさき}のプレゼン{後|ご}'),
+    jp:R('{取引先|とりひきさき}の{担当者|たんとうしゃ}が{見事|みごと}なプレゼンを{終|お}えた。アニメなら「すげぇ！」と{叫|さけ}ぶところ。'),
+    zh:'客户负责人做完了一场漂亮的提案。动漫里这时该喊一句“すげぇ！”。',
+    ask:R('{大人|おとな}の{褒|ほ}め{方|かた}は？'),
+    askCn:'成年人该怎么夸？',
+    options:[
+      { jp:'すげぇ！', zh:'牛啊！', badge:'热血', kind:'anime', ok:false,
+        why:R('「すごい」的粗放音变形，只在熟人之间成立。') },
+      { jp:'さすがですね。', zh:'不愧是您', badge:'万能', kind:'keigo', ok:true, romaji:'sasuga desu ne',
+        why:'「さすが」＝“果然名不虚传”，夸的是对方一贯的实力，比单说“厉害”更受用。' },
+      { jp:'やばい、やばい。', zh:'绝了绝了', badge:'年轻向', kind:'casual', ok:false,
+        why:'年轻人之间「やばい」确实可以表示“太棒了”，但在客户面前仍然是减分项。' }
+    ],
+    takeaway:'夸人用「さすがですね」，「すげぇ／やばい」留给朋友',
+    tip:R('想更具体可以加 <span class="highlight">{勉強|べんきょう}になりました</span>（让我学到了）。但别对上级说「お{上手|じょうず}ですね」——那是上对下的评价口吻。')
+  }
+  ]);
+
+})(window.JP);
+</script>
+<script>
+/* ===== inlined: data/keigo.js ===== */
+/* ============================================================
+   敬語トラップ篇（6 题）—— 只放数据，加题直接往数组里追加
+   假名写法：{漢字|かんじ}     字段说明见 data/_core.js
+   ============================================================ */
+(function (JP) {
+  "use strict";
+  const R = JP.R;
+
+  JP.add('keigo', [
+  {
+    id:'k-01', pack:'keigo', level:3, type:'phrase',
+    heat:'💀 84.2% 答错率的地狱题',
+    scene:R('{退社|たいしゃ}{時|じ}のオフィス'),
+    jp:R('{夜|よる}８{時|じ}、あなたは{先|さき}に{帰|かえ}る。まだ{残|のこ}って{仕事|しごと}をしている{課長|かちょう}に{一言|ひとこと}かけたい。'),
+    zh:'晚上八点你先走，想跟还在加班的课长打声招呼。',
+    ask:R('この{一言|ひとこと}、{間違|まちが}えると{一発|いっぱつ}アウト。'),
+    askCn:'这一句说错，直接出局。',
+    options:[
+      { jp:R('お{疲|つか}れ{様|さま}です。'), zh:'辛苦了（通用）', badge:'敬语', kind:'keigo', ok:true, romaji:'otsukaresama desu',
+        why:'职场万能慰劳语，上下级都能用，先走、路过、打电话开头全靠它。' },
+      { jp:R('ご{苦労|くろう}{様|さま}です。'), zh:'辛苦了（上对下）', badge:'敬语', kind:'anime', ok:false,
+        why:'形式上是敬语，方向却反了：「ご苦労様」是上级慰劳下级，对上司用等于把自己摆得更高。' },
+      { jp:'さようなら。', zh:'再见', badge:'生分', kind:'casual', ok:false,
+        why:'日本职场几乎不用它道别，那是“很久不见”的告别，同事间说会像明天不来了。' }
+    ],
+    takeaway:'「ご苦労様」只能上对下，对上司永远是「お疲れ様です」',
+    tip:R('离开时最好两句连用：<span class="highlight">お{先|さき}に{失礼|しつれい}します</span> ＋ 对方回你「お{疲|つか}れ{様|さま}でした」。这是日本职场下班的标准配置。')
+  },
+  {
+    id:'k-02', pack:'keigo', level:3, type:'phrase',
+    heat:'☠️ 88.6% 的人当场翻车',
+    scene:R('{客先|きゃくさき}からの{電話|でんわ}'),
+    jp:R('{取引先|とりひきさき}から{電話|でんわ}が{来|き}た。「{田中|たなか}{部長|ぶちょう}はいらっしゃいますか？」——あなたの{上司|じょうし}の{田中|たなか}は{席|せき}を{外|はず}している。'),
+    zh:'客户来电找你们的田中部长，而田中正好不在座位上。',
+    ask:R('{自分|じぶん}の{上司|じょうし}を、{外|そと}の{人|ひと}にどう{言|い}う？'),
+    askCn:'对外提到自己的上司，该怎么称呼？',
+    options:[
+      { jp:R('{田中|たなか}{部長|ぶちょう}は{席|せき}を{外|はず}しております。'), zh:'田中部长不在座位上', badge:'敬语', kind:'anime', ok:false,
+        why:'「部長」本身就是敬称。对外人抬举自己公司的人，是商务日语里最典型的失分点。' },
+      { jp:R('{部長|ぶちょう}の{田中|たなか}は{席|せき}を{外|はず}しております。'), zh:'我们部长田中不在座位上', badge:'谦让', kind:'keigo', ok:true, romaji:'buchō no Tanaka wa seki o hazushite orimasu',
+        why:'把头衔降格成说明语放在姓氏前，姓氏直呼不加さん——对外一律把自己人放低。' },
+      { jp:R('{田中|たなか}さんは{席|せき}を{外|はず}しております。'), zh:'田中先生不在座位上', badge:'敬语', kind:'anime', ok:false,
+        why:'「さん」同样是敬称，对外提到自己公司的同事要去掉。' }
+    ],
+    takeaway:'对外提自己人：去掉さん，把头衔挪到姓氏前面当说明',
+    tip:R('反过来，对方公司的人要抬到最高：<span class="highlight">{御社|おんしゃ}の{佐藤|さとう}{部長|ぶちょう}</span>。内谦外敬，是日本商务敬语的总开关。')
+  },
+  {
+    id:'k-03', pack:'keigo', level:3, type:'consequence',
+    heat:'🌀 76.8% 的人反射性说错',
+    scene:R('{締|し}め{切|き}り{前|まえ}のデスク'),
+    jp:R('{資料|しりょう}が{終|お}わらず{残業|ざんぎょう}{確定|かくてい}。{先輩|せんぱい}が{声|こえ}をかけてくれた——「{手伝|てつだ}いましょうか？」{本当|ほんとう}は{手伝|てつだ}ってほしい。'),
+    zh:'资料做不完，铁定加班。前辈问“要我帮忙吗？”——你其实很想要人帮。',
+    ask:R('ここで{何|なん}と{答|こた}える？'),
+    askCn:'这时候你该怎么回答？',
+    options:[
+      { jp:R('{大丈夫|だいじょうぶ}です。'), zh:'没关系（＝不用了）', badge:'婉拒', kind:'anime', ok:false,
+        why:'便利店里它是万能拒绝，这里同样被听成“不用你帮”——前辈会直接走开，你继续一个人加班。' },
+      { jp:R('ぜひお{願|ねが}いします。'), zh:'那就拜托您了', badge:'得体', kind:'keigo', ok:true, romaji:'zehi onegai shimasu',
+        why:R('明确接受，再补一句「{助|たす}かります」（帮大忙了），人情就到位了。') },
+      { jp:R('{別|べつ}にいいです。'), zh:'不用了吧', badge:'失礼', kind:'casual', ok:false,
+        why:'「別に」带不耐烦的情绪，是拒绝里最伤人的一种。' }
+    ],
+    takeaway:'「大丈夫です」＝婉拒；想要帮忙必须说「お願いします」',
+    tip:R('日语的拒绝多是“肯定形状的否定”：<span class="highlight">{大丈夫|だいじょうぶ}です</span>／<span class="highlight">{結構|けっこう}です</span>／<span class="highlight">いいです</span>，三句都是“不用了”。想接受，只能明确说「お{願|ねが}いします」。')
+  },
+  {
+    id:'k-04', pack:'keigo', level:3, type:'phrase',
+    heat:'📞 81.4% 的人第一声就错',
+    scene:R('{会社|かいしゃ}の{固定電話|こていでんわ}'),
+    jp:R('デスクの{電話|でんわ}が{鳴|な}った。{画面|がめん}に{出|で}ているのは{取引先|とりひきさき}の{番号|ばんごう}。{受話器|じゅわき}を{取|と}って、{第一声|だいいっせい}——'),
+    zh:'桌上电话响了，屏幕显示是客户的号码。拿起听筒，第一声——',
+    ask:R('ビジネス{電話|でんわ}の{第一声|だいいっせい}は？'),
+    askCn:'商务电话的第一句该说什么？',
+    options:[
+      { jp:'もしもし。', zh:'喂？', badge:'私人', kind:'anime', ok:false,
+        why:R('「もしもし」是私人电话用语，而且是「{申|もう}す{申|もう}す」的省略形——正式场合忌用省略形，接起来说它会显得很业余。') },
+      { jp:R('お{電話|でんわ}ありがとうございます。〇〇{社|しゃ}の{田中|たなか}でございます。'), zh:'感谢来电，这里是〇〇公司的田中', badge:'定型句', kind:'keigo', ok:true, romaji:'odenwa arigatō gozaimasu',
+        why:'先谢来电，再报公司与姓名——日本商务电话的标准开场，对方一秒确认打对了没有。' },
+      { jp:R('はい、{何|なん}でしょうか。'), zh:'嗯，什么事？', badge:'冷淡', kind:'casual', ok:false,
+        why:'像在应付，而且没报出自己是谁，对方无从确认。' }
+    ],
+    takeaway:'商务电话不说「もしもし」，先谢来电再报公司与姓名',
+    tip:R('响铃超过三声才接，要补一句 <span class="highlight">お{待|ま}たせいたしました</span>（让您久等了）。挂断也有讲究：让对方先挂，是电话礼仪的基本。')
+  },
+  {
+    id:'k-05', pack:'keigo', level:3, type:'phrase',
+    heat:'💀 85.7% 的人敬语加过头',
+    scene:R('{受付|うけつけ}からの{内線|ないせん}'),
+    jp:R('お{客様|きゃくさま}が{到着|とうちゃく}した。{部長|ぶちょう}に{取|と}り{次|つ}ぐため、{席|せき}まで{伝|つた}えに{行|い}く。'),
+    zh:'客户到了。你要走到部长座位上通报一声。',
+    ask:R('{敬語|けいご}は{足|た}りない？{足|た}しすぎ？'),
+    askCn:'敬语是不够，还是加太多了？',
+    options:[
+      { jp:R('お{客様|きゃくさま}がお{見|み}えになられました。'), zh:'客人已莅临（敬语叠了两层）', badge:'二重敬语', kind:'anime', ok:false,
+        why:R('「お{見|み}えになる」本身已经是尊敬语，再套一层「られる」就成了二重敬语——加过头反而失礼。') },
+      { jp:R('お{客様|きゃくさま}がお{見|み}えになりました。'), zh:'客人到了（刚好）', badge:'刚好', kind:'keigo', ok:true, romaji:'okyakusama ga omie ni narimashita',
+        why:'一层尊敬语，不多不少，是最标准的通报说法。' },
+      { jp:R('お{客様|きゃくさま}が{来|き}ました。'), zh:'客人来了', badge:'不足', kind:'casual', ok:false,
+        why:'只有丁宁语，没有抬高客户的动作，商务场合分量不够。' }
+    ],
+    takeaway:'敬语不是越叠越好：一个动作只抬一次',
+    tip:R('常见的二重敬语还有 <span class="highlight">お{伺|うかが}いさせていただきます</span>、<span class="highlight">おっしゃられる</span>。判断方法很简单——<b>同一个动作被敬化了两次，就是多余</b>。')
+  },
+  {
+    id:'k-06', pack:'keigo', level:3, type:'phrase',
+    heat:'🎭 78.3% 的人有这个口癖',
+    scene:R('メールの{下書|したが}き'),
+    jp:R('{客先|きゃくさき}に{資料|しりょう}を{送|おく}ると{伝|つた}えたい。バイト{時代|じだい}のクセで、つい{余計|よけい}な{一語|いちご}が{入|はい}ってしまう。'),
+    zh:'想告诉客户“我把资料发过去”。打工时代养成的习惯，总会多冒出一个词。',
+    ask:R('どれが{一番|いちばん}きれい？'),
+    askCn:'哪一句最干净？',
+    options:[
+      { jp:R('{資料|しりょう}のほうをお{送|おく}りいたします。'), zh:'资料这边给您发过去', badge:'打工敬语', kind:'casual', ok:false,
+        why:R('「〜のほう」没有实义，是典型的バイト{敬語|けいご}，写进商务邮件会显得不专业。') },
+      { jp:R('{資料|しりょう}をお{送|おく}りいたします。'), zh:'我把资料发给您', badge:'干净', kind:'keigo', ok:true, romaji:'shiryō o ookuri itashimasu',
+        why:R('「お＋{送|おく}り＋いたす」是标准谦让语，多一个字都嫌多。') },
+      { jp:R('{資料|しりょう}を{送|おく}ります。'), zh:'我发资料', badge:'不足', kind:'casual', ok:false,
+        why:'只是丁宁语，对客户不够礼貌。' }
+    ],
+    takeaway:'「〜のほう」是打工敬语，去掉才干净',
+    tip:R('三大バイト{敬語|けいご}：<span class="highlight">〜のほう</span>、<span class="highlight">〜になります</span>（コーヒーになります）、<span class="highlight">〜から{お預|おあず}かりします</span>。在便利店听着自然，写进邮件就露怯。')
+  }
+  ]);
+
+})(window.JP);
+</script>
 <script>
 (() => {
   "use strict";
@@ -981,6 +1711,7 @@ rt{
         <div class="scene-row">
           <span class="scene">${R(PACKS[q.pack].label)} ・ ${q.scene}</span>
           <span class="qtype">${TYPES[q.type].label}</span>
+          ${q.heat ? `<span class="heat-tag">${q.heat}</span>` : ""}
         </div>
 
         <div class="question-box">
@@ -1229,6 +1960,24 @@ rt{
     const btn = document.querySelector(`.option-card[data-i="${i}"]`);
     if (btn && !btn.disabled) btn.click();
   });
+
+  /* ============================================================
+     URL 暗号：网址带 ?mode=video 才进入「录屏模式」
+     ------------------------------------------------------------
+       index.html              → 玩家版：右侧栏隐藏，游戏区居中占满
+       index.html?mode=video   → 录屏版：右侧栏浮现，恢复左右分栏
+     参数值不区分大小写（MODE=VIDEO / ?mode=Video 都认）。
+     实际的显示/隐藏全部由 CSS 的 body.video-mode 规则控制，
+     这里只负责给 <body> 挂上这个 class。
+     ============================================================ */
+  const urlParams = new URLSearchParams(location.search);
+  let modeValue = "";
+  // 参数名和参数值都转小写再比，?MODE=Video、?Mode=VIDEO 一律认
+  urlParams.forEach((value, key) => {
+    if (key.trim().toLowerCase() === "mode") modeValue = String(value).trim().toLowerCase();
+  });
+  const isVideoMode = modeValue === "video";
+  document.body.classList.toggle("video-mode", isVideoMode);
 
   /* ---- 启动自检：题库写错时页面顶部报红条 ---- */
   const bankErrors = JP.validate();
