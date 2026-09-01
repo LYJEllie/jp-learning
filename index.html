@@ -118,13 +118,7 @@ body.video-mode .game-zone{ flex:1.2; }   /* 录屏：左侧约占 6 成 */
   letter-spacing:1px;
   color:var(--muted);
 }
-.visit-counter__fallback{
-  border:2px solid var(--ink);
-  background:var(--white);
-  box-shadow:2px 2px 0px var(--ink);
-  padding:2px 8px;
-  font-variant-numeric:tabular-nums;
-}
+.visit-counter[hidden]{ display:none; }
 
 /* 中段内容：只有这里滚动 */
 .game-content-scroll{
@@ -904,13 +898,19 @@ body.video-mode .game-zone{ flex:1.2; }   /* 录屏：左侧约占 6 成 */
     <!-- 底部固定操作区：开始 / 下一题 / 结算 / 重来 -->
     <div class="action-bar" id="actionBar"></div>
 
-    <!-- 累计访问量计数器：挂件加载失败时自动降级为本地文案 -->
-    <div class="visit-counter">
+    <!-- ============================================================
+         累计访问量计数器（hits.sh 免费挂件，返回 SVG 图片）
+         计数的 key 就是 URL 里的那段路径：lyjellie.github.io/jp-learning
+         —— 想单独统计某个页面，换成别的路径即可；想清零，换一个新路径。
+         配色参数：labelColor=111111（黑标签）、color=ff4757（红数字）
+         挂件加载不出来时（比如离线、被拦截），整行自动隐藏，不留裂图。
+         ============================================================ -->
+    <div class="visit-counter" id="visitCounter">
       <span>累计访问</span>
-      <img src="https://websiteout.net" alt="Views"
+      <img src="https://hits.sh/lyjellie.github.io/jp-learning.svg?style=flat-square&amp;label=views&amp;color=ff4757&amp;labelColor=111111"
+           alt="累计访问量"
            style="border: 2px solid #111111; padding: 2px; background: white; box-shadow: 2px 2px 0px #111111; vertical-align: middle;"
-           onerror="this.remove(); document.getElementById('counterFallback').hidden = false;">
-      <span class="visit-counter__fallback" id="counterFallback" hidden>计数器待接入</span>
+           onerror="document.getElementById('visitCounter').hidden = true;">
     </div>
   </div>
 
