@@ -40,11 +40,11 @@ body{
   background-color:var(--bg);
   display:flex;
   justify-content:center;
-  align-items:flex-start;
+  align-items:center;
   min-height:100vh;
-  padding:24px 20px 60px;
+  padding:20px;
   color:var(--dark);
-  overflow-x:hidden;
+  overflow:hidden;          /* 桌面端：整页不出现系统滚动条，录屏画面干净 */
 }
 
 /* ---------- 假名注音 ---------- */
@@ -58,14 +58,131 @@ rt{
   user-select:none;
 }
 
-.app{
+/* ---------- 录屏框架：左游戏区 + 右侧栏 ---------- */
+.main-wrapper{
+  display:flex;
+  flex-direction:row;
   width:100%;
-  max-width:540px;
+  max-width:1100px;      /* 契合 16:9 的拉伸比例 */
+  height:85vh;           /* 锁死高度，绝不超出屏幕 */
+  gap:40px;
+  align-items:center;
+  justify-content:center;
+}
+
+.game-zone{
+  flex:1.2;
+  height:100%;
+  background-color:var(--card);
+  border:4px solid var(--ink);
+  border-radius:16px;
+  box-shadow:var(--shadow);
+  padding:24px;
   display:flex;
   flex-direction:column;
-  gap:18px;
+  overflow:hidden;
 }
-.app.is-hit{ animation:shake .45s cubic-bezier(.36,.07,.19,.97) both; }
+.game-zone.is-hit{ animation:shake .45s cubic-bezier(.36,.07,.19,.97) both; }
+
+/* 中段内容：只有这里滚动 */
+.game-content-scroll{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding-right:10px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--line) transparent;
+}
+.game-content-scroll::-webkit-scrollbar{ width:8px; }
+.game-content-scroll::-webkit-scrollbar-track{ background:transparent; }
+.game-content-scroll::-webkit-scrollbar-thumb{
+  background-color:var(--line);
+  border-radius:99px;
+  border:2px solid var(--card);
+}
+.game-content-scroll:hover::-webkit-scrollbar-thumb{ background-color:#c3cbd6; }
+
+/* 底部固定操作区 */
+.action-bar{
+  flex:none;
+  padding-top:14px;
+  margin-top:4px;
+  border-top:3px solid var(--ink);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:74px;
+}
+.action-hint{
+  width:100%;
+  text-align:center;
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:1px;
+  color:var(--muted);
+  border:2px dashed var(--line);
+  border-radius:8px;
+  padding:14px;
+}
+.action-hint .jp{ font-family:var(--jp); }
+
+/* ---------- 右侧录屏侧栏 ---------- */
+.youtube-sidebar{
+  flex:0.8;
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  padding:20px 0;
+  text-align:left;
+}
+.channel-title-box h1{
+  font-size:clamp(28px,3vw,38px);
+  font-weight:900;
+  color:var(--ink);
+  line-height:1.3;
+  letter-spacing:1px;
+  margin-bottom:10px;
+}
+.channel-title-box .vs-mark{ color:var(--red); font-style:italic; }
+.channel-title-box p{
+  font-size:15px;
+  color:var(--muted);
+  font-weight:bold;
+  line-height:1.6;
+}
+.channel-title-box .tagline-jp{
+  font-family:var(--jp);
+  font-size:13px;
+  color:#9aa2ad;
+  margin-top:8px;
+  line-height:1.9;
+}
+.avatar-placeholder{
+  flex:1;
+  margin:20px 0;
+  background-color:rgba(17,17,17,.04);
+  border:3px dashed var(--ink);
+  border-radius:12px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  text-align:center;
+  padding:16px;
+  color:#8b95a3;
+  font-size:13px;
+  font-weight:bold;
+  line-height:1.7;
+}
+.footer-guide-text{
+  font-size:14px;
+  color:var(--dark);
+  line-height:1.7;
+  font-weight:bold;
+  border-top:3px solid var(--ink);
+  padding-top:15px;
+}
 @keyframes shake{
   10%,90%{ transform:translate3d(-4px,0,0); }
   20%,80%{ transform:translate3d(7px,0,0); }
@@ -73,13 +190,12 @@ rt{
   40%,60%{ transform:translate3d(11px,0,0); }
 }
 
-/* ---------- 血量 + 进度 HUD ---------- */
+/* ---------- 血量 + 进度 HUD（游戏区顶部，不随内容滚动） ---------- */
 .hud{
-  background-color:var(--white);
-  border:4px solid var(--ink);
-  border-radius:12px;
-  box-shadow:var(--shadow-md);
-  padding:12px 16px;
+  flex:none;
+  padding-bottom:12px;
+  margin-bottom:16px;
+  border-bottom:3px solid var(--ink);
   display:flex;
   align-items:center;
   justify-content:space-between;
@@ -127,14 +243,10 @@ rt{
   transition:width .45s cubic-bezier(.2,.9,.25,1);
 }
 
-/* ---------- 卡片 ---------- */
+/* ---------- 画面容器（外框由 .game-zone 提供，这里不再画边框） ---------- */
 .card{
-  background-color:var(--card);
-  border:4px solid var(--ink);
-  border-radius:12px;
-  box-shadow:var(--shadow);
-  padding:34px 28px;
   position:relative;
+  padding:2px 2px 8px;
   animation:cardIn .28s ease-out both;
 }
 .card--center{ text-align:center; }
@@ -233,8 +345,13 @@ rt{
   50%{ transform:scale(1.03); box-shadow:0 4px 15px rgba(0,0,0,.2); }
   100%{ transform:scale(1); }
 }
-.start-btn--sm{ padding:13px 26px; font-size:16px; margin-top:20px; }
-.start-btn--sm .jp-text{ font-size:14px; }
+/* 底部操作区里的按钮：铺满宽度 */
+.action-bar .start-btn{
+  width:100%;
+  margin-top:0;
+  padding:15px 20px;
+  justify-content:center;
+}
 
 /* ---------- 场景描述区 ---------- */
 .scene-row{
@@ -667,15 +784,32 @@ rt{
 .alert[hidden]{ display:none; }
 .alert ul{ margin:6px 0 0 18px; }
 
-.footnote{
-  font-family:var(--jp);
-  text-align:center;
-  font-size:12px;
-  line-height:2;
-  letter-spacing:1px;
-  color:#9aa2ad;
+/* ============================================================
+   响应式：手机端变单列，右侧录屏侧栏整个隐藏，不干扰游玩
+   ============================================================ */
+@media (max-width:768px){
+  body{ overflow:auto; align-items:flex-start; padding:16px 14px 40px; }
+  .main-wrapper{
+    flex-direction:column;
+    height:auto;
+    max-width:100%;
+    gap:20px;
+  }
+  .game-zone{
+    width:100%;
+    height:auto;
+    padding:20px 18px;
+    box-shadow:var(--shadow-md);
+  }
+  .game-content-scroll{ overflow:visible; padding-right:0; }
+  .youtube-sidebar{ display:none; }
+  .action-bar{ min-height:0; }
 }
-.footnote rt{ color:#b9c0c9; }
+
+/* 桌面端：大标题由右侧栏承担，卡片内不再重复 */
+@media (min-width:769px){
+  .cover-brand{ display:none; }
+}
 
 @media (prefers-reduced-motion:reduce){
   *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
@@ -687,24 +821,49 @@ rt{
 <div class="flash" id="flash" aria-hidden="true"></div>
 <canvas class="fx" id="fx" aria-hidden="true"></canvas>
 
-<div class="app" id="app">
+<div class="main-wrapper">
 
-  <div class="hud" id="hud" hidden>
-    <div class="hearts" id="hearts" aria-label="剩余血量"></div>
-    <div class="progress">
-      <span class="counter"><b id="qnum">1</b> / <span id="qtotal">3</span></span>
-      <div class="bar" id="bar" role="progressbar" aria-label="答题进度" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">
-        <span class="bar__fill" id="barFill"></span>
+  <!-- ========== 左：游戏区（高度锁死，内部滚动） ========== -->
+  <div class="game-zone" id="app">
+
+    <div class="hud" id="hud" hidden>
+      <div class="hearts" id="hearts" aria-label="剩余血量"></div>
+      <div class="progress">
+        <span class="counter"><b id="qnum">1</b> / <span id="qtotal">3</span></span>
+        <div class="bar" id="bar" role="progressbar" aria-label="答题进度" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">
+          <span class="bar__fill" id="barFill"></span>
+        </div>
       </div>
     </div>
+
+    <!-- 内部滚动区：题目再长也不会撑爆外框 -->
+    <div class="game-content-scroll" id="scrollArea">
+      <!-- 题库自检报错条（正常情况下隐藏） -->
+      <div class="alert" id="alert" hidden></div>
+      <div id="screen" aria-live="polite"></div>
+    </div>
+
+    <!-- 底部固定操作区：开始 / 下一题 / 结算 / 重来 -->
+    <div class="action-bar" id="actionBar"></div>
   </div>
 
-  <!-- 题库自检报错条（正常情况下隐藏） -->
-  <div class="alert" id="alert" hidden></div>
+  <!-- ========== 右：录屏侧栏（手机端自动隐藏） ========== -->
+  <aside class="youtube-sidebar">
+    <div class="channel-title-box">
+      <h1>动漫热血日语<br><span class="vs-mark">VS</span> 现实尴尬日语</h1>
+      <p>—— 别把二次元台词带入现实职场！</p>
+      <p class="tagline-jp"><ruby>敬語<rt>けいご</rt></ruby>は<ruby>武器<rt>ぶき</rt></ruby>。ちゃんと<ruby>使<rt>つか</rt></ruby>えば、<ruby>恥<rt>はじ</rt></ruby>はかかない。</p>
+    </div>
 
-  <div id="screen" aria-live="polite"></div>
+    <!-- OBS 里把摄像头 / Live2D 直接叠在这个框的位置 -->
+    <div class="avatar-placeholder">【OBS 画面叠加区：Live2D、真人出镜或动态字幕】</div>
 
-  <p class="footnote"><ruby>敬語<rt>けいご</rt></ruby>は<ruby>武器<rt>ぶき</rt></ruby>。ちゃんと<ruby>使<rt>つか</rt></ruby>えば、<ruby>恥<rt>はじ</rt></ruby>はかかない。</p>
+    <div class="footer-guide-text">
+      👉 体验同款网页小游戏：网址已放在评论区置顶<br>
+      ✨ 喜欢请点赞、订阅，每周更新地道日本生存指南
+    </div>
+  </aside>
+
 </div>
 
 <script src="data/_core.js"></script>
@@ -735,6 +894,7 @@ rt{
 
   const $ = (id) => document.getElementById(id);
   const app = $("app"), screen = $("screen"), hud = $("hud"), flash = $("flash");
+  const scrollArea = $("scrollArea"), actionBar = $("actionBar");
   const heartsEl = $("hearts"), qnum = $("qnum"), bar = $("bar"), barFill = $("barFill");
   $("qtotal").textContent = ROUND;
 
@@ -762,15 +922,30 @@ rt{
   }
 
   /* ========== 封面 ========== */
+  /* 底部操作区：按钮统一放这里，不随内容滚动 */
+  function renderAction(html, onClick){
+    actionBar.innerHTML = html;
+    const btn = actionBar.querySelector("button");
+    if (btn && onClick) btn.addEventListener("click", onClick);
+  }
+
+  const actionButton = (jp, cn, pulse) =>
+    `<button class="start-btn${pulse ? " start-btn--pulse" : ""}" type="button">
+       <span class="jp-text">${jp}</span><span>${cn}</span>
+     </button>`;
+
   function renderCover(){
     hud.hidden = true;
+    scrollArea.scrollTop = 0;
     screen.innerHTML = `
       <div class="card card--center">
         <div class="sub-lang-title">日本語シチュエーション・クイズ</div>
-        <div class="title-vs-box">
-          <div class="main-title red-title">动漫热血日语</div>
-          <div class="vs-text">vs</div>
-          <div class="main-title blue-title">现实尴尬日语</div>
+        <div class="cover-brand">
+          <div class="title-vs-box">
+            <div class="main-title red-title">动漫热血日语</div>
+            <div class="vs-text">vs</div>
+            <div class="main-title blue-title">现实尴尬日语</div>
+          </div>
         </div>
         <p class="desc-text">
           番剧看了三百集，敬语一句不会。<br>
@@ -782,12 +957,8 @@ rt{
           <div class="rule-item">每局从 ${BANK.length} 道题里随机抽 ${ROUND} 个不同场景，难度由浅入深</div>
           <div class="rule-item">全部日文带假名注音，边玩边记</div>
         </div>
-        <button class="start-btn start-btn--pulse" id="startBtn" type="button">
-          <span class="jp-text"><ruby>出勤<rt>しゅっきん</rt></ruby>する</span>
-          <span>开始挑战 👇</span>
-        </button>
       </div>`;
-    $("startBtn").addEventListener("click", startGame);
+    renderAction(actionButton('<ruby>出勤<rt>しゅっきん</rt></ruby>する', "开始挑战 👇", true), startGame);
   }
 
   function startGame(){
@@ -803,6 +974,8 @@ rt{
     const q = SET[state.index];
     state.locked = false;
     renderProgress();
+    scrollArea.scrollTop = 0;
+    renderAction(`<p class="action-hint">${R('A・B・C から{選|えら}んでください')} ／ 选一个答案</p>`);
     screen.innerHTML = `
       <div class="card">
         <div class="scene-row">
@@ -901,17 +1074,25 @@ rt{
           <span class="bonus-box__label">进阶</span>
           <div>${q.tip}</div>
         </div>
-        <button class="start-btn start-btn--sm" id="nextBtn" type="button">
-          <span class="jp-text">${end ? '<ruby>結果<rt>けっか</rt></ruby>へ' : '<ruby>次<rt>つぎ</rt></ruby>へ'}</span>
-          <span>${end ? "查看结算 🏁" : "下一题 👉"}</span>
-        </button>
       </div>`;
 
-    $("nextBtn").addEventListener("click", () => {
-      state.index++;
-      renderProgress();
-      if (state.hp === 0 || state.index >= ROUND) renderResult();
-      else renderQuestion();
+    renderAction(
+      actionButton(
+        end ? R('{結果|けっか}へ') : R('{次|つぎ}へ'),
+        end ? "查看结算 🏁" : "下一题 👉"
+      ),
+      () => {
+        state.index++;
+        renderProgress();
+        if (state.hp === 0 || state.index >= ROUND) renderResult();
+        else renderQuestion();
+      }
+    );
+
+    // 讲解框刚出现在下方，滚过去让玩家直接看到
+    requestAnimationFrame(() => {
+      const box = screen.querySelector(".verdict");
+      if (box) box.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" });
     });
   }
 
@@ -957,14 +1138,12 @@ rt{
         <p class="diagnosis">${diagnosis}</p>
         <div class="recap-title">带走这 ${state.log.length} 句</div>
         <ul class="recap">${recap}</ul>
-        <button class="start-btn start-btn--pulse" id="againBtn" type="button">
-          <span class="jp-text">もう<ruby>一度<rt>いちど</rt></ruby></span>
-          <span>再来一次 🔁</span>
-        </button>
       </div>`;
 
+    scrollArea.scrollTop = 0;
+    renderAction(actionButton(R('もう{一度|いちど}'), "再来一次 🔁", true), renderCover);
+
     if (state.correct === ROUND) confetti(150);
-    $("againBtn").addEventListener("click", () => { renderCover(); window.scrollTo({ top:0 }); });
   }
 
   /* ========== 特效 ========== */
