@@ -1,0 +1,2 @@
+# 构建产物：单文件版由 `node build.mjs --inline` 生成，可再生，不入库
+dist/

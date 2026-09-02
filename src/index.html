@@ -934,10 +934,6 @@ body.video-mode .game-zone{ flex:1.2; }   /* 录屏：左侧约占 6 成 */
 </div>
 
 <script src="../data/_core.js"></script>
-<script src="../data/workplace.js"></script>
-<script src="../data/survival.js"></script>
-<script src="../data/anime.js"></script>
-<script src="../data/keigo.js"></script>
 <script>
 (() => {
   "use strict";
@@ -1316,17 +1312,38 @@ body.video-mode .game-zone{ flex:1.2; }   /* 录屏：左侧约占 6 成 */
   const isVideoMode = modeValue === "video";
   document.body.classList.toggle("video-mode", isVideoMode);
 
-  /* ---- 启动自检：题库写错时页面顶部报红条 ---- */
-  const bankErrors = JP.validate();
-  if (bankErrors.length){
-    const box = $("alert");
-    box.hidden = false;
-    box.innerHTML = `<b>题库自检发现 ${bankErrors.length} 处问题：</b>
-      <ul>${bankErrors.map(e => `<li>${e}</li>`).join("")}</ul>`;
-    console.error("[题库自检]", bankErrors);
+  /* ---- 启动自检 + 渲染封面 ---- */
+  function boot(){
+    const bankErrors = JP.validate();
+    if (bankErrors.length){
+      const box = $("alert");
+      box.hidden = false;
+      box.innerHTML = `<b>题库自检发现 ${bankErrors.length} 处问题：</b>
+        <ul>${bankErrors.map(e => `<li>${e}</li>`).join("")}</ul>`;
+      console.error("[题库自检]", bankErrors);
+    }
+    renderCover();
   }
 
-  renderCover();
+  /* ---- 题库懒加载：数据分包按需加载，加载完再启动 ----
+     单文件内联版已把数据直接内联，__JP_INLINE__=true，跳过网络加载。 */
+  const DATA_BASE = "../data/";   // build.mjs 懒加载模式会改写成 "data/"
+  if (window.__JP_INLINE__){
+    boot();
+  } else {
+    scrollArea.innerHTML = '<div style="padding:2.5rem 1rem;text-align:center;opacity:.55">読み込み中…</div>';
+    JP.load(DATA_BASE, (failed) => {
+      if (failed.length){
+        const box = $("alert");
+        box.hidden = false;
+        box.innerHTML = "<b>题库加载失败：</b>" + failed.map(f => `data/${f}.js`).join("、") +
+          "。<br>请确认 data/ 目录与页面放在一起，或改用合并版单文件（build.mjs --inline）。";
+        console.error("[题库加载失败]", failed);
+        return;
+      }
+      boot();
+    });
+  }
 })();
 </script>
 </body>

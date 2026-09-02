@@ -142,6 +142,22 @@
     add(pack, list) {
       list.forEach((q) => { if (!q.pack) q.pack = pack; BANK.push(q); });
     },
+    /* 懒加载各大类数据文件：在 base 目录下按 PACKS 的 key 找 <key>.js，
+       并行插入 <script> 加载，全部完成（或出错）后回调 done(failed)，
+       failed 是加载失败的 key 数组。单文件内联版不会用到它。 */
+    load(base, done) {
+      const keys = Object.keys(PACKS);
+      if (!keys.length) { done([]); return; }
+      let left = keys.length;
+      const failed = [];
+      keys.forEach((k) => {
+        const s = document.createElement('script');
+        s.src = base + k + '.js';
+        s.onload = () => { if (--left === 0) done(failed); };
+        s.onerror = () => { failed.push(k); if (--left === 0) done(failed); };
+        document.head.appendChild(s);
+      });
+    },
     validate: () => validateBank(BANK),
     draw: () => drawSet()
   };
