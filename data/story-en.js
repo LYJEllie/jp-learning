@@ -39,6 +39,12 @@
         lockedName:'？？？'
       },
 
+      /* 状态变量的显示名：只有登记在这里的才会出现在顶部状态条上。
+         没登记的变量照样能参与条件判断，只是不给玩家看。 */
+      flagLabels:{
+        失言:'第一印象：翻车'
+      },
+
       sidebar:{
         title:'外企生存战<br><span class="vs-mark">Day 1</span> 窒息的茶水间',
         sub:'—— 一句话选错，第一天就能被请出去。',
@@ -62,8 +68,9 @@
         choices:[
           { text:'假装肚子痛，捂着肚子喊 <span class="en">“Oh, my stomach!”</span> 冲进厕所。',
             badge:'三十六计', nextId:'wc_gg' },
+          /* 这一步会记下「第一印象搞砸了」，后面的完美结局会换一套说法 */
           { text:'惊慌失措，满头大汗立正大喊：<span class="en">“Yes! I will work until I die!”</span>',
-            badge:'用力过猛', nextId:'humble_branch' },
+            badge:'用力过猛', set:{ 失言:true }, nextId:'humble_branch' },
           { text:'微微一笑回答：<span class="en">“Born ready! But I might need this coffee first.”</span>',
             badge:'松弛感', nextId:'perfect_branch' }
         ]
@@ -146,7 +153,22 @@
               入职第一天，你直接拿下了升职加薪的入场券！`,
         lesson:`外企的高分句型永远是这一个：
                 <span class="en">“I see your point, but built on that, what if we...”</span>
-                —— 不否定，只加建设性。`
+                —— 不否定，只加建设性。`,
+
+        /* 从「用力过猛」那条线绕回来的玩家，看到的是翻盘版结局。
+           走向完全一样，只是说法不同——变体只改怎么讲，不改往哪走。 */
+        variants:[
+          {
+            requires:{ 失言:true },
+            title:'逆风翻盘的新人',
+            text:`茶水间那句 <span class="en">“I will work until I die!”</span> 已经没人再提。
+                  老板对你的高情商修正方案赞不绝口，当场让你负责这个项目的核心部分。<br>
+                  第一印象砸得稀烂，你却用半天扳了回来！`,
+            lesson:`第一印象砸了不是终点。会议室里的
+                    <span class="en">“I see your point, but built on that...”</span>
+                    比茶水间的自我介绍重要得多。`
+          }
+        ]
       }
 
     ]

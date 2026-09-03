@@ -158,6 +158,29 @@ body.video-mode .game-zone{ flex:1.2; }
 }
 .trail__arrow{ flex:none; font-size:11px; color:var(--line); }
 
+/* 状态变量条：由 meta.flagLabels 决定显示哪些，没配就整条不出现 */
+.flags{
+  flex:none;
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:-6px 0 12px;
+}
+.flags[hidden]{ display:none; }
+.flag-chip{
+  font-family:var(--main-font);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.5px;
+  color:var(--ink);
+  background:var(--yellow);
+  border:2px solid var(--ink);
+  border-radius:20px;
+  padding:3px 9px;
+  box-shadow:var(--shadow-sm);
+  animation:popIn .4s cubic-bezier(.2,.9,.3,1.4) both;
+}
+
 /* ---------- 剧情树自检报错条 ---------- */
 .alert{
   flex:none;
@@ -703,6 +726,9 @@ body.lang-jp .channel-title-box .tagline{ font-style:normal; }
       <span class="step-badge">第 <b id="stepNum">1</b> 步</span>
       <div class="trail" id="trail"></div>
     </div>
+
+    <!-- 状态变量条：好感度、是否失言……由剧情包的 flagLabels 决定 -->
+    <div class="flags" id="flags" hidden></div>
 
     <!-- 剧情树自检报错条（正常情况下隐藏） -->
     <div class="alert" id="alert" hidden></div>

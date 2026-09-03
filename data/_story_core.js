@@ -27,6 +27,90 @@
   const PACKS = {};                  // 已注册的剧情包，key 就是语言代号
 
   /* ============================================================
+     状态变量（flags）—— 让后面的剧情能记住前面的选择
+     ------------------------------------------------------------
+     选项用 set 改变量：
+       set:{ 好感度:'+1', 失言:true, 呼び方:'name' }
+         · '+1' / '-2'  在原值上加减（没设过的当 0）
+         · 数字/布尔/字符串  直接赋值
+
+     节点、选项、分流、变体用 requires 判断条件：
+       requires:{ 好感度:'>=2', 失言:false }        ← 所有条件都满足（AND）
+       requires:[ {好感度:'>=2'}, {呼び方:'name'} ]  ← 任一满足即可（OR）
+         · '>=2' '<=1' '>0' '<3' '==1' '!=0'  数值比较（没设过的当 0）
+         · true / false   变量是否为真
+         · 数字 / 字符串   相等判断
+
+     条件只用这套声明式写法，不跑 eval——剧情永远只是数据，
+     所以 tools/check-story.mjs 能在 Node 里把它整棵校验一遍。
+     ============================================================ */
+  const OPS = {
+    '>=': (a, b) => a >= b, '<=': (a, b) => a <= b,
+    '>':  (a, b) => a >  b, '<':  (a, b) => a <  b,
+    '==': (a, b) => a === b, '!=': (a, b) => a !== b
+  };
+  const COND_RE  = /^\s*(>=|<=|==|!=|>|<)\s*(-?\d+(?:\.\d+)?)\s*$/;
+  const DELTA_RE = /^\s*([+-])\s*(\d+(?:\.\d+)?)\s*$/;
+
+  function testOne(flags, key, cond){
+    const cur = flags[key];
+    if (typeof cond === 'boolean') return cond ? !!cur : !cur;
+    if (typeof cond === 'number')  return Number(cur || 0) === cond;
+    if (typeof cond === 'string'){
+      const m = COND_RE.exec(cond);
+      if (m) return OPS[m[1]](Number(cur || 0), Number(m[2]));
+      return String(cur == null ? '' : cur) === cond;   // 普通字符串＝相等判断
+    }
+    return false;
+  }
+
+  /* 没写 requires 就是「无条件成立」 */
+  function test(flags, requires){
+    if (!requires) return true;
+    if (Array.isArray(requires)) return requires.some((r) => test(flags, r));
+    return Object.keys(requires).every((k) => testOne(flags, k, requires[k]));
+  }
+
+  function applySet(flags, set){
+    if (!set) return flags;
+    Object.keys(set).forEach((k) => {
+      const v = set[k];
+      const m = (typeof v === 'string') ? DELTA_RE.exec(v) : null;
+      if (m) flags[k] = Number(flags[k] || 0) + (m[1] === '-' ? -1 : 1) * Number(m[2]);
+      else   flags[k] = v;
+    });
+    return flags;
+  }
+
+  /* 节点变体：第一个条件满足的 variant 覆盖掉基础文案。
+     变体只能改「怎么讲」（scene/text/sub/ask/askSub/title/lesson），
+     不能改「往哪走」（id/choices/nextId/ending）——这条由自检守住。 */
+  function resolve(node, flags){
+    if (!Array.isArray(node.variants) || !node.variants.length) return node;
+    const hit = node.variants.find((v) => test(flags, v.requires));
+    if (!hit) return node;
+    const merged = Object.assign({}, node, hit);
+    delete merged.requires;
+    delete merged.variants;
+    merged.id = node.id;
+    return merged;
+  }
+
+  /* 选项分流：routes 里第一个条件满足的胜出，都不满足就走 nextId。
+     nextId 永远必填，所以任何选项都有确定的去处，不会走丢。 */
+  function nextOf(choice, flags){
+    if (Array.isArray(choice.routes)){
+      const hit = choice.routes.find((r) => test(flags, r.requires));
+      if (hit) return hit.to;
+    }
+    return choice.nextId;
+  }
+
+  /* 当前条件下玩家能看到的选项 */
+  const visibleChoices = (node, flags) =>
+    (node.choices || []).filter((c) => test(flags, c.requires));
+
+  /* ============================================================
      剧情包注册
      ------------------------------------------------------------
      Story.define('jp', { meta:{...}, nodes:[...] })
@@ -73,6 +157,33 @@
     const errs = [], seen = new Set();
     const nodes = pack.nodes || [];
     const NODES = indexOf(pack);
+    const setKeys = new Set();     // 被 set 过的变量名
+    const reqUses = [];            // [变量名, 出处] —— 用来抓拼错的变量
+
+    /* requires 的形状检查：条件值必须是布尔 / 数字 / 合法的比较串或普通字符串 */
+    const checkRequires = (req, tag) => {
+      if (req == null) return;
+      if (Array.isArray(req)){ req.forEach((r) => checkRequires(r, tag)); return; }
+      if (typeof req !== 'object'){ errs.push(`${tag}：requires 必须是对象或对象数组`); return; }
+      Object.keys(req).forEach((k) => {
+        reqUses.push([k, tag]);
+        const v = req[k];
+        if (typeof v === 'boolean' || typeof v === 'number') return;
+        if (typeof v === 'string') return;                 // 比较串或普通字符串都合法
+        errs.push(`${tag}：条件「${k}」的值只能是布尔／数字／字符串`);
+      });
+    };
+
+    const checkSet = (set, tag) => {
+      if (set == null) return;
+      if (typeof set !== 'object' || Array.isArray(set)){ errs.push(`${tag}：set 必须是对象`); return; }
+      Object.keys(set).forEach((k) => {
+        setKeys.add(k);
+        const v = set[k];
+        if (typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string') return;
+        errs.push(`${tag}：set「${k}」的值只能是布尔／数字／字符串（'+1' '-2' 表示加减）`);
+      });
+    };
 
     nodes.forEach((n, i) => {
       const at = `第 ${i + 1} 个节点（${n.id || '缺 id'}）`;
@@ -82,6 +193,20 @@
       if (n.id){
         if (seen.has(n.id)) errs.push(`${at}：id 与前面重复`);
         seen.add(n.id);
+      }
+
+      /* 节点变体：只能改文案，不能改走向 */
+      if (n.variants != null){
+        if (!Array.isArray(n.variants)) errs.push(`${at}：variants 必须是数组`);
+        else n.variants.forEach((v, k) => {
+          const tag = `${at} 变体${k + 1}`;
+          if (!v || typeof v !== 'object'){ errs.push(`${tag}：必须是对象`); return; }
+          if (!v.requires) errs.push(`${tag}：缺字段 requires（不带条件的变体永远会命中第一个）`);
+          checkRequires(v.requires, tag);
+          ['id','choices','nextId','ending'].forEach((f) => {
+            if (f in v) errs.push(`${tag}：变体不能覆盖 ${f}（变体只改怎么讲，不改往哪走）`);
+          });
+        });
       }
 
       if (isEnding(n)){
@@ -95,23 +220,57 @@
         errs.push(`${at}：不是结局节点，却没有 choices（玩家会走进死胡同）`);
         return;
       }
+
       n.choices.forEach((c, j) => {
         const tag = `${at} 选项${"ABCDEF"[j] || j + 1}`;
         if (!c.text)   errs.push(`${tag}：缺字段 text`);
         if (!c.badge)  errs.push(`${tag}：缺字段 badge`);
-        if (!c.nextId) errs.push(`${tag}：缺字段 nextId`);
+        if (!c.nextId) errs.push(`${tag}：缺字段 nextId（分流用的 routes 也要留 nextId 兜底）`);
         else if (!NODES[c.nextId]) errs.push(`${tag}：nextId「${c.nextId}」指向的节点不存在`);
+
+        checkRequires(c.requires, tag);
+        checkSet(c.set, tag);
+
+        if (c.routes != null){
+          if (!Array.isArray(c.routes)) errs.push(`${tag}：routes 必须是数组`);
+          else c.routes.forEach((r, k) => {
+            const rt = `${tag} 分流${k + 1}`;
+            if (!r || typeof r !== 'object'){ errs.push(`${rt}：必须是对象`); return; }
+            if (!r.requires) errs.push(`${rt}：缺字段 requires`);
+            checkRequires(r.requires, rt);
+            if (!r.to) errs.push(`${rt}：缺字段 to`);
+            else if (!NODES[r.to]) errs.push(`${rt}：to「${r.to}」指向的节点不存在`);
+          });
+        }
       });
+
+      /* 所有选项都带条件时，可能出现一个选项都显示不出来的死局。
+         要求至少留一条无条件的退路。 */
+      if (n.choices.every((c) => c.requires)){
+        errs.push(`${at}：所有选项都带 requires，条件都不满足时会一个选项都出不来——至少留一条无条件的`);
+      }
     });
 
     if (!NODES[START_ID]) errs.push(`找不到开局节点「${START_ID}」`);
 
-    /* 从开局做一次可达性遍历，捞出永远走不到的孤儿节点 */
+    /* 条件里用到、却从来没有被 set 过的变量，八成是拼错了 */
+    const reported = new Set();
+    reqUses.forEach(([k, tag]) => {
+      if (setKeys.has(k) || reported.has(k)) return;
+      reported.add(k);
+      errs.push(`${tag}：条件用到的变量「${k}」从来没有被任何选项 set 过（拼错了？）`);
+    });
+
+    /* 从开局做一次可达性遍历，捞出永远走不到的孤儿节点。
+       分流的 to 也算一条边，否则只在 routes 里出现的节点会被误报。 */
     const reached = new Set();
     (function walk(id){
       if (!id || reached.has(id) || !NODES[id]) return;
       reached.add(id);
-      (NODES[id].choices || []).forEach((c) => walk(c.nextId));
+      (NODES[id].choices || []).forEach((c) => {
+        walk(c.nextId);
+        (c.routes || []).forEach((r) => walk(r.to));
+      });
     })(START_ID);
     nodes.forEach((n) => {
       if (n.id && !reached.has(n.id)) errs.push(`节点「${n.id}」从开局出发永远走不到（孤儿节点）`);
@@ -179,7 +338,7 @@
       }
     };
 
-    const state = { id:START_ID, path:[], locked:false };
+    const state = { id:START_ID, path:[], flags:{}, locked:false };
 
     function renderAction(html, onClick){
       actionBar.innerHTML = html;
@@ -194,6 +353,23 @@
         .map((s) => `<span class="trail__item">${R(s)}</span>`)
         .join('<span class="trail__arrow">▶</span>');
       trailBox.scrollLeft = trailBox.scrollWidth;
+      renderFlags();
+    }
+
+    /* 状态变量条：只显示 meta.flagLabels 里登记过、且当前有值的变量。
+       没配 flagLabels 就整条不出现——内部用的开关不必让玩家看见。 */
+    function renderFlags(){
+      const box = $("flags");
+      if (!box) return;
+      const labels = meta.flagLabels || {};
+      const chips = Object.keys(labels).map((k) => {
+        const v = state.flags[k];
+        if (v == null || v === false || v === 0 || v === "") return "";
+        const n = (typeof v === "number" && v > 1) ? ` ×${v}` : "";
+        return `<span class="flag-chip">${R(labels[k])}${n}</span>`;
+      }).filter(Boolean).join("");
+      box.innerHTML = chips;
+      box.hidden = !chips;
     }
 
     /* ---------- 封面 ---------- */
@@ -235,6 +411,7 @@
     function startGame(){
       state.id = START_ID;
       state.path = [];
+      state.flags = Object.assign({}, meta.initialFlags);   // 每局从头开始
       state.locked = false;
       hud.hidden = false;
       goTo(START_ID);
@@ -244,6 +421,11 @@
     function renderNode(node){
       state.locked = false;
       scrollArea.scrollTop = 0;
+
+      /* 条件不满足的选项直接不显示；自检保证了至少有一条无条件的退路，
+         真出现一条都不剩的极端情况就全部显示，宁可穿帮也不卡死。 */
+      let choices = visibleChoices(node, state.flags);
+      if (!choices.length) choices = node.choices;
 
       const sub    = node.sub ? `<p class="story-sub">${R(node.sub)}</p>` : "";
       const askSub = node.askSub || ui.askSub;
@@ -261,7 +443,7 @@
             ${askSub ? `<small>${R(askSub)}</small>` : ""}
           </p>
           <div class="options">
-            ${node.choices.map((c, i) => `
+            ${choices.map((c, i) => `
               <button class="option-card" type="button" data-i="${i}">
                 <span class="opt-key">${"ABC"[i] || i + 1}</span>
                 <span class="opt-body">
@@ -276,11 +458,11 @@
       renderAction(`<p class="action-hint">${R(ui.hint || "选一个走向 ／ A・B・C")}</p>`);
 
       screenBox.querySelectorAll(".option-card").forEach((btn) => {
-        btn.addEventListener("click", () => pick(node, Number(btn.dataset.i), btn));
+        btn.addEventListener("click", () => pick(choices, Number(btn.dataset.i), btn));
       });
     }
 
-    function pick(node, i, btn){
+    function pick(choices, i, btn){
       if (state.locked) return;
       state.locked = true;
 
@@ -288,7 +470,11 @@
       screenBox.querySelectorAll(".option-card").forEach((b) => { b.disabled = true; });
       btn.classList.add("is-picked");
 
-      setTimeout(() => goTo(node.choices[i].nextId), 420);
+      const choice = choices[i];
+      applySet(state.flags, choice.set);          // 先改状态
+      const to = nextOf(choice, state.flags);     // 再按新状态决定去处
+      renderFlags();
+      setTimeout(() => goTo(to), 420);
     }
 
     /* ---------- 结局 ---------- */
@@ -334,11 +520,13 @@
 
     /* ---------- 跳转：整个引擎唯一的入口 ---------- */
     function goTo(id){
-      const node = NODES[id];
-      if (!node){                      // 自检已经拦过一道，这里只是兜底
+      const raw = NODES[id];
+      if (!raw){                       // 自检已经拦过一道，这里只是兜底
         console.error("[剧情跳转失败] 找不到节点：", id);
         return;
       }
+      /* 变体在这里生效：同一个节点，按当前状态换一套说法 */
+      const node = resolve(raw, state.flags);
       state.id = id;
       state.path.push(node.scene);
       renderTrail();
@@ -380,6 +568,11 @@
     document.head.appendChild(s);
   }
 
-  root.Story = { R, ENDING_META, PACKS, START_ID, define, validate, stats, mount, load };
+  root.Story = {
+    R, ENDING_META, PACKS, START_ID,
+    define, validate, stats, mount, load,
+    /* 状态变量相关，单元测试和外部工具会直接用到 */
+    test, applySet, resolve, nextOf, visibleChoices
+  };
 
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -28,7 +28,7 @@
 
 ## 题库
 
-24 题，四大类各 6 题：
+200 题，四大类各 50 题：
 
 | 大类 | key | 考什么 |
 |---|---|---|
@@ -58,7 +58,8 @@ data/
   story-en.js       剧情数据：外企版（含封面、侧栏等页面文案）
   story-jp.js       剧情数据：日语版
 tools/
-  check-story.mjs   剧情树校验（断链 / 孤儿节点 / 字段缺失），CI 友好
+  check-story.mjs   剧情树校验（断链 / 孤儿节点 / 变量拼错 / 字段缺失），CI 友好
+  test-flags.mjs    状态变量引擎的单元测试（条件求值 / 分流 / 变体 / 自检）
   smoke-story.mjs   成品页冒烟测试：在 DOM 桩里真跑一遍，确认打开能用
 build.mjs           src + data → 根目录成品页
 .nojekyll           让 GitHub Pages 原样托管（否则 _core.js 会被 Jekyll 忽略）
@@ -161,17 +162,52 @@ node build.mjs --story    # 剧情 · 两个语言各一个单文件 → story-e
 
 **选项一律同色**（白底黑边），不用配色区分好坏——否则玩家一眼就能看出哪条是正解。
 
+### 状态变量与条件分支
+
+让后面的剧情记住前面的选择。选项用 `set` 改变量，节点／选项／分流／变体用 `requires` 判断条件：
+
+```js
+// 选项：改变量
+{ text:'…', badge:'用力过猛', set:{ 失言:true, 好感度:'-1' }, nextId:'humble_branch' }
+
+// 选项：满足条件才出现（不满足就整条不显示）
+{ text:'…', badge:'熟人才敢说', requires:{ 好感度:'>=2' }, nextId:'…' }
+
+// 选项：按状态分流，nextId 永远是兜底
+{ text:'…', badge:'…', nextId:'normal_end',
+  routes:[ { requires:{ 好感度:'>=3' }, to:'perfect_win' } ] }
+
+// 节点：同一个节点换一套说法（只改怎么讲，不改往哪走）
+variants:[ { requires:{ 失言:true }, title:'逆风翻盘的新人', text:'…' } ]
+```
+
+条件写法：`'>=2'` `'<=1'` `'>0'` `'<3'` `'==1'` `'!=0'` 数值比较（没设过的变量当 0）、`true`/`false` 真值判断、数字或字符串相等判断。一个对象里多个条件是 AND，写成数组 `[{...},{...}]` 是 OR。赋值时 `'+1'`／`'-2'` 是加减，其余直接赋值。
+
+条件只有这套声明式写法、不跑 `eval`，所以剧情永远只是数据，`check-story` 能在 Node 里把整棵树校验一遍。
+
+在 `meta.flagLabels` 里登记的变量会显示在顶部状态条上（`失言:'第一印象：翻车'`）；没登记的照样参与判断，只是不给玩家看。
+
+现成的例子：两个剧情包里，「用力过猛」那条线会 `set:{失言:true}`，之后即使靠情商翻盘走到 `perfect_win`，看到的也是**翻盘版**结局文案，而不是一路顺风那一版。
+
 ### 剧情树自检
 
 ```bash
 node tools/check-story.mjs        # 校验剧情树，有问题 exit 1
+node tools/test-flags.mjs         # 状态变量引擎的单元测试（50 项）
 node tools/smoke-story.mjs        # 成品页在 DOM 桩里真跑一遍
 ```
 
-会查断链（`nextId` 指向不存在的节点）、`id` 重复、结局节点还带 `choices`、非结局节点没有 `choices`（死胡同）、**从 `start` 出发永远走不到的孤儿节点**、必填字段缺失。页面加载时跑的是同一份逻辑，有问题就在顶部弹红条。
+会查断链（`nextId` / `routes[].to` 指向不存在的节点）、`id` 重复、结局节点还带 `choices`、非结局节点没有 `choices`（死胡同）、**从 `start` 出发永远走不到的孤儿节点**、必填字段缺失，以及条件分支特有的几个坑：
+
+- `requires` 里用到、却从来没有被任何选项 `set` 过的变量（**变量名拼错**，这是最容易漏的）
+- 一个节点的选项**全都带 `requires`**——条件都不满足时会一个选项都出不来
+- `variants` 想覆盖 `id`／`choices`／`nextId`／`ending`（变体只该改文案）
+- `set`／`requires` 的值类型不合法
+
+页面加载时跑的是同一份 `Story.validate()`，有问题就在顶部弹红条。
 
 发布前的完整流程：
 
 ```bash
-node tools/check-story.mjs && node build.mjs --story && node tools/smoke-story.mjs
+node tools/check-story.mjs && node tools/test-flags.mjs && node build.mjs --story && node tools/smoke-story.mjs
 ```
