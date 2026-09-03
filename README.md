@@ -58,10 +58,13 @@ data/
   story-en.js       剧情数据：外企版（含封面、侧栏等页面文案）
   story-jp.js       剧情数据：日语版
 tools/
+  check-bank.mjs    题库校验（字段 / id 重复 / 正解数量 / 抽题）
   check-story.mjs   剧情树校验（断链 / 孤儿节点 / 变量拼错 / 字段缺失），CI 友好
   test-flags.mjs    状态变量引擎的单元测试（条件求值 / 分流 / 变体 / 自检）
   smoke-story.mjs   成品页冒烟测试：在 DOM 桩里真跑一遍，确认打开能用
 build.mjs           src + data → 根目录成品页
+hooks/pre-push      push 前跑全套检查（git config core.hooksPath hooks 启用）
+.github/workflows/  CI：同一串检查，外加「成品页是否已重新构建」
 .nojekyll           让 GitHub Pages 原样托管（否则 _core.js 会被 Jekyll 忽略）
 ```
 
@@ -206,8 +209,35 @@ node tools/smoke-story.mjs        # 成品页在 DOM 桩里真跑一遍
 
 页面加载时跑的是同一份 `Story.validate()`，有问题就在顶部弹红条。
 
-发布前的完整流程：
+## 检查与 CI
+
+四个脚本，加起来跑完 1 秒出头：
 
 ```bash
-node tools/check-story.mjs && node tools/test-flags.mjs && node build.mjs --story && node tools/smoke-story.mjs
+node tools/check-bank.mjs     # 题库校验（字段 / id 重复 / 正解数量 / 抽题 200 轮）
+node tools/check-story.mjs    # 剧情树校验（断链 / 孤儿节点 / 变量拼错）
+node tools/test-flags.mjs     # 状态变量引擎单元测试（50 项）
+node tools/smoke-story.mjs    # 成品页在 DOM 桩里真跑一遍
 ```
+
+`check-bank` 和 `check-story` 调的就是页面上弹红条的那两个 `validate()`，**同一份逻辑**——本地过了页面就不会报。
+
+### 别忘了重新构建
+
+根目录的 `index.html` / `story-*.html` 是构建产物。改了 `src/` 或 `data/` 却忘了重跑构建，Pages 上就还是旧页面——本地怎么点都对，只有访客看到过期版本。这类问题不做检查基本发现不了，所以 hook 和 CI 都会拦：重新构建后如果成品页有变化，就报错退出。
+
+### pre-push hook
+
+克隆后启用一次即可：
+
+```bash
+git config core.hooksPath hooks     # 启用
+git config --unset core.hooksPath   # 停用
+git push --no-verify                # 单次跳过
+```
+
+`hooks/pre-push` 会跑完整套检查再放行，发现成品页过期时会顺手帮你重新构建好，只要 `git add` 一下就能继续。
+
+### GitHub Actions
+
+`.github/workflows/ci.yml` 在 push 到 `main` 和 PR 上跑同一串命令，最后一步同样检查成品页是否已重新构建。

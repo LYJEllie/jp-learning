@@ -1,0 +1,57 @@
+# ============================================================
+# 推上来就跑一遍：题库、剧情树、状态变量引擎、构建、成品页
+#
+# 最后一步是重点：重新构建后如果根目录的成品页和仓库里的不一样，
+# 就说明改了 src/ 或 data/ 却忘了重跑构建 —— 那样 Pages 上还是旧页面，
+# 本地怎么点都是对的，只有访客看到的是过期版本。这类问题不做检查
+# 基本发现不了，所以让 CI 直接拦下。
+# ============================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 题库校验
+        run: node tools/check-bank.mjs
+
+      - name: 剧情树校验
+        run: node tools/check-story.mjs
+
+      - name: 状态变量引擎单元测试
+        run: node tools/test-flags.mjs
+
+      - name: 构建全部产物
+        run: |
+          node build.mjs
+          node build.mjs --inline
+          node build.mjs --story
+
+      - name: 成品页冒烟测试
+        run: node tools/smoke-story.mjs
+
+      - name: 成品页是否已重新构建
+        run: |
+          if ! git diff --quiet -- index.html story-en.html story-jp.html; then
+            echo "::error::改了 src/ 或 data/ 却没重跑构建，根目录的成品页已经过期。"
+            echo ""
+            echo "本地补一下再推："
+            echo "  node build.mjs && node build.mjs --story"
+            echo ""
+            echo "以下文件重新构建后与仓库中的版本不一致："
+            git diff --stat -- index.html story-en.html story-jp.html
+            exit 1
+          fi
+          echo "成品页与源码一致。"

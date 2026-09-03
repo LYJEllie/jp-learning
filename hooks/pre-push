@@ -1,0 +1,48 @@
+#!/bin/sh
+# ============================================================
+# push 前跑一遍全套检查，和 .github/workflows/ci.yml 是同一串命令。
+# 全部加起来 1 秒出头，不会拖慢工作流；CI 上再拦一次是兜底。
+#
+# 启用（克隆后做一次）：
+#     git config core.hooksPath hooks
+# 停用：
+#     git config --unset core.hooksPath
+# 单次跳过：
+#     git push --no-verify
+# ============================================================
+set -e
+
+cd "$(git rev-parse --show-toplevel)"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-push: 没找到 node，跳过检查。"
+  exit 0
+fi
+
+echo "─── pre-push 检查 ───────────────────────────"
+
+node tools/check-bank.mjs
+node tools/check-story.mjs
+node tools/test-flags.mjs
+
+# 重新构建，再看成品页有没有变化。
+# 有变化＝改了 src/ 或 data/ 却忘了重跑构建，这时候推上去，
+# Pages 上还是旧页面——本地怎么点都对，只有访客看到过期版本。
+node build.mjs        >/dev/null
+node build.mjs --story >/dev/null
+node tools/smoke-story.mjs >/dev/null
+
+if ! git diff --quiet -- index.html story-en.html story-jp.html; then
+  echo ""
+  echo "✗ 根目录的成品页已经过期（改了 src/ 或 data/ 但没重跑构建）。"
+  echo "  刚才已经帮你重新构建好了，确认无误后提交即可："
+  echo ""
+  git diff --stat -- index.html story-en.html story-jp.html
+  echo ""
+  echo "    git add index.html story-en.html story-jp.html"
+  echo "    git commit --amend --no-edit    # 或者另起一个 commit"
+  echo ""
+  exit 1
+fi
+
+echo "✅ 全部通过，开始 push。"
