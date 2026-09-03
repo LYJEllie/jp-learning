@@ -1120,10 +1120,13 @@ body.video-mode .game-zone{ flex:1.2; }   /* 录屏：左侧约占 6 成 */
     const end = state.hp === 0 || last;
 
     const romaji = (SHOW_ROMAJI && right.romaji) ? `<p class="romaji">${right.romaji}</p>` : "";
+    /* 解析文里的 {漢字|かんじ} 在这里统一展开——题库里的 why 很多没包 R()，
+       放在渲染时兜底，以后加题写不写 R() 都能正常注音。 */
+    const why = (o) => R(o.why);
     const body = ok
-      ? `<p><span class="jp">${right.jp}</span> — ${right.why}</p>${romaji}`
-      : `<p>你选的 <span class="jp">${picked.jp}</span>：${picked.why}</p>
-         <p>正解是 <span class="jp">${right.jp}</span> — ${right.why}</p>${romaji}`;
+      ? `<p><span class="jp">${right.jp}</span> — ${why(right)}</p>${romaji}`
+      : `<p>你选的 <span class="jp">${picked.jp}</span>：${why(picked)}</p>
+         <p>正解是 <span class="jp">${right.jp}</span> — ${why(right)}</p>${romaji}`;
 
     const mark = ok ? MARK.ok : MARK.ng;
     $("verdict").innerHTML = `
