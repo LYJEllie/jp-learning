@@ -42,19 +42,30 @@
 ## 项目结构
 
 ```
-index.html          ← 构建产物：单文件成品，部署/分享/双击都用它
-src/index.html      源码：游戏引擎与样式（日常不用改）
+index.html          ← 构建产物：题库游戏（只内联引擎，数据由 data/ 运行时加载）
+story-en.html       ← 构建产物：剧情游戏 · 外企版（单文件，自带引擎与剧情）
+story-jp.html       ← 构建产物：剧情游戏 · 日语版（同上）
+src/
+  index.html        源码：题库游戏的引擎与样式
+  story.html        源码：剧情游戏的骨架与样式（EN / JP 共用这一份）
 data/
-  _core.js          假名简写 R() / 大类 PACKS / 题型 TYPES / 注册器 / 自检 / 抽题 / 称号
+  _core.js          题库引擎：R() / PACKS / TYPES / 注册器 / 自检 / 抽题 / 称号
   workplace.js      職場篇
   survival.js       サバイバル篇
   anime.js          アニメ罠篇
   keigo.js          敬語トラップ篇
-build.mjs           src + data → 根目录 index.html
+  _story_core.js    剧情引擎：R() / 结局定义 / 剧情树自检 / 状态机 / 渲染
+  story-en.js       剧情数据：外企版（含封面、侧栏等页面文案）
+  story-jp.js       剧情数据：日语版
+tools/
+  check-story.mjs   剧情树校验（断链 / 孤儿节点 / 字段缺失），CI 友好
+  smoke-story.mjs   成品页冒烟测试：在 DOM 桩里真跑一遍，确认打开能用
+build.mjs           src + data → 根目录成品页
 .nojekyll           让 GitHub Pages 原样托管（否则 _core.js 会被 Jekyll 忽略）
 ```
 
-> 根目录的 `index.html` 是**生成的**，不要直接改它——改 `src/index.html` 或 `data/*.js`，再跑一次 `node build.mjs`。
+> 根目录的 `index.html` / `story-*.html` 都是**生成的**，不要直接改——改 `src/` 或 `data/`，再跑构建。
+> 题库页依赖 `data/` 目录一起部署；剧情页是自包含的单文件，拷走就能跑。
 
 ## 加一道题
 
@@ -114,7 +125,53 @@ build.mjs           src + data → 根目录 index.html
 改完要发布：
 
 ```bash
-node build.mjs        # src/index.html + data/*.js → 根目录 index.html
+node build.mjs            # 题库 · 懒加载版 → 根目录 index.html（上线用这个）
+node build.mjs --inline   # 题库 · 单文件版 → dist/index.html（拷一个文件就能跑）
+node build.mjs --story    # 剧情 · 两个语言各一个单文件 → story-en.html / story-jp.html
 ```
 
-它会把每一行 `<script src="../data/*.js">` 原地替换成文件内容，产出一个自包含的 HTML。新增大类时，记得在 `_core.js` 的 `PACKS` 加一行、建同名 `.js`、并在 `src/index.html` 里加一行 `<script src>`，构建脚本会自动内联。
+懒加载版只把引擎 `data/_core.js` 内联进 HTML，四个大类留在 `data/` 里由 `JP.load()` 并行按需加载——加题只改动一个数据文件，不用重发整包。新增大类时在 `_core.js` 的 `PACKS` 加一行、建同名 `.js`，构建脚本会自动带上。
+
+构建脚本每次都会自检 `</script>` 闭合数，内联代码里混进未转义的 `</script` 会当场中止写入（那会把整个页面截断）。
+
+## 剧情文字冒险
+
+`story-en.html`（外企 Day 1）和 `story-jp.html`（入社初日）是同一套引擎的两个语言版本，走的是**剧情节点跳转**而不是线性出题：每个节点有场景、正文和若干分支，分支指向下一个节点 id，走到结局节点就出结局卡。三类结局分别是 `win` / `normal` / `gg`，解锁情况存在浏览器本地，封面上能看到收集进度。
+
+同样支持 `?mode=video`：默认右侧栏隐藏、游戏区居中占满；带上参数右侧栏浮现，方便录屏时叠人设和标题。
+
+### 加一段剧情
+
+打开对应的 `data/story-<lang>.js`，往 `nodes` 数组里加节点，再从已有的某个 `choices.nextId` 指过来：
+
+```js
+{
+  id:'nomikai_start',            // 唯一编号
+  scene:'🍻 歓迎会',              // 场景标签
+  text:'…剧情正文（{漢字|かんじ} 自动出假名）…',
+  sub:'…中文对照，可省略…',
+  ask:'どうする？', askSub:'你打算：',
+  choices:[
+    { text:'…选项…', sub:'…中文…', badge:'趣味标签', nextId:'某个节点 id' }
+  ]
+}
+```
+
+结局节点不写 `choices`，改写 `ending`（`win`/`normal`/`gg`）、`title`，可选 `lesson`（结局金句）。章节化建议用 id 前缀区分：`d2_start`、`nomikai_start`。
+
+**选项一律同色**（白底黑边），不用配色区分好坏——否则玩家一眼就能看出哪条是正解。
+
+### 剧情树自检
+
+```bash
+node tools/check-story.mjs        # 校验剧情树，有问题 exit 1
+node tools/smoke-story.mjs        # 成品页在 DOM 桩里真跑一遍
+```
+
+会查断链（`nextId` 指向不存在的节点）、`id` 重复、结局节点还带 `choices`、非结局节点没有 `choices`（死胡同）、**从 `start` 出发永远走不到的孤儿节点**、必填字段缺失。页面加载时跑的是同一份逻辑，有问题就在顶部弹红条。
+
+发布前的完整流程：
+
+```bash
+node tools/check-story.mjs && node build.mjs --story && node tools/smoke-story.mjs
+```

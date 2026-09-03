@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>剧情文字冒险</title>
+<style>
+/* ============================================================
+   剧情走向文字冒险 —— 页面骨架（EN / JP 共用这一份）
+   波普 / 复古扁平（Neo-brutalism）：米底 + 黑粗边 + 硬投影
+   红 #ff4757 = 踩雷   绿 #2ed573 = 通关   黄 #f1c40f = 平庸
+
+   · 剧情文案在 data/story-<lang>.js
+   · 引擎在 data/_story_core.js
+   · 这里只放样式和空壳，文字全部由剧情包的 meta 填进来
+   ============================================================ */
+
+:root{
+  --bg:      #f7f1e3;
+  --card:    #fcfaf2;
+  --white:   #ffffff;
+  --ink:     #111111;
+  --dark:    #2f3542;
+  --muted:   #57606f;
+  --line:    #dfe4ea;
+  --red:     #ff4757;
+  --red-deep:#c72c39;
+  --green:   #2ed573;
+  --green-deep:#0b5d33;
+  --blue:    #1e90ff;
+  --yellow:  #f1c40f;
+  --yellow-deep:#8a6d00;
+  --shadow:    12px 12px 0px var(--ink);
+  --shadow-md: 6px 6px 0px var(--ink);
+  --shadow-sm: 3px 3px 0px var(--ink);
+  --cn: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --jp: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --en: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  --solo-width: 720px;      /* 单人模式下的卡片宽度，只调这一个值 */
+  --main-font:  var(--cn);  /* 剧情正文字体，日语版由 body.lang-jp 覆盖 */
+  --main-lh:    2;          /* 剧情正文行高，日语版要给 ruby 留位置 */
+}
+
+/* 日语剧情包挂上 body.lang-jp：正文换日文字体、行高放大给假名留空间 */
+body.lang-jp{ --main-font: var(--jp); --main-lh: 2.4; }
+
+*{ box-sizing:border-box; margin:0; padding:0; font-family:var(--cn); }
+
+body{
+  background-color:var(--bg);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  padding:20px;
+  color:var(--dark);
+  overflow:hidden;          /* 桌面端：整页不出现系统滚动条，录屏画面干净 */
+}
+
+/* ---------- 假名注音 ---------- */
+ruby{ ruby-align:center; }
+rt{
+  font-family:var(--jp);
+  font-size:.5em;
+  font-weight:600;
+  color:var(--muted);
+  letter-spacing:0;
+  user-select:none;
+}
+
+/* ============================================================
+   两种版式，靠 <body class="video-mode"> 切换（JS 读 URL 决定）
+
+   ① 默认（story-xx.html）：右侧栏 display:none，
+      外框收窄到 --solo-width，游戏区占满 100% 宽度并居中。
+   ② 录屏（story-xx.html?mode=video）：右侧栏浮现，
+      外框拉到 1100px，恢复 16:9 的左右分栏比例。
+   ============================================================ */
+.main-wrapper{
+  display:flex;
+  flex-direction:row;
+  width:100%;
+  max-width:var(--solo-width);
+  height:85vh;              /* 锁死高度，绝不超出屏幕 */
+  gap:40px;
+  align-items:center;
+  justify-content:center;
+}
+body.video-mode .main-wrapper{ max-width:1100px; }
+
+.youtube-sidebar{ display:none; }
+body.video-mode .youtube-sidebar{ display:flex; }
+
+/* ---------- 左：游戏区 ---------- */
+.game-zone{
+  flex:1;
+  width:100%;
+  height:100%;
+  min-width:0;
+  background:var(--card);
+  border:4px solid var(--ink);
+  border-radius:16px;
+  box-shadow:var(--shadow);
+  padding:24px 26px 18px;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+body.video-mode .game-zone{ flex:1.2; }
+.game-zone.is-hit{ animation:shake .45s cubic-bezier(.36,.07,.19,.97) both; }
+
+/* ---------- 顶部 HUD：步数 + 走过的路 ---------- */
+.hud{
+  flex:none;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding-bottom:12px;
+  margin-bottom:14px;
+  border-bottom:3px solid var(--ink);
+}
+.hud[hidden]{ display:none; }
+.step-badge{
+  flex:none;
+  background:var(--ink);
+  color:var(--white);
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:1px;
+  padding:5px 10px;
+  border-radius:6px;
+}
+.step-badge b{ color:var(--yellow); font-size:15px; }
+.trail{
+  flex:1;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  overflow:hidden;
+  white-space:nowrap;
+}
+.trail__item{
+  flex:none;
+  font-size:11px;
+  font-weight:700;
+  color:var(--muted);
+  background:var(--white);
+  border:2px solid var(--line);
+  border-radius:20px;
+  padding:3px 9px;
+}
+.trail__item:last-child{
+  color:var(--ink);
+  border-color:var(--ink);
+  box-shadow:var(--shadow-sm);
+}
+.trail__arrow{ flex:none; font-size:11px; color:var(--line); }
+
+/* ---------- 剧情树自检报错条 ---------- */
+.alert{
+  flex:none;
+  background:var(--red);
+  color:var(--white);
+  border:3px solid var(--ink);
+  border-radius:10px;
+  box-shadow:var(--shadow-sm);
+  padding:10px 14px;
+  margin-bottom:12px;
+  font-size:12px;
+  line-height:1.7;
+}
+.alert[hidden]{ display:none; }
+.alert ul{ margin:6px 0 0 18px; }
+
+/* ---------- 中段：唯一允许滚动的区域 ---------- */
+.game-content-scroll{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding-right:10px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--line) transparent;
+}
+.game-content-scroll::-webkit-scrollbar{ width:8px; }
+.game-content-scroll::-webkit-scrollbar-track{ background:transparent; }
+.game-content-scroll::-webkit-scrollbar-thumb{
+  background:var(--line);
+  border-radius:8px;
+}
+
+/* ---------- 卡片 ---------- */
+.card{
+  background:var(--white);
+  border:3px solid var(--ink);
+  border-radius:14px;
+  box-shadow:var(--shadow-md);
+  padding:22px 22px 24px;
+  animation:cardIn .32s cubic-bezier(.2,.9,.3,1.2) both;
+}
+.card--center{ text-align:center; }
+
+.scene-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:14px;
+}
+.scene{
+  background:var(--ink);
+  color:var(--white);
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:1px;
+  padding:5px 12px;
+  border-radius:20px;
+}
+.scene--type{
+  background:var(--white);
+  color:var(--ink);
+  border:2px solid var(--ink);
+}
+
+/* 剧情正文（主文本）＋ 副文本／中文对照 */
+.story-text{
+  font-family:var(--main-font);
+  font-size:16px;
+  line-height:var(--main-lh);
+  color:var(--ink);
+  letter-spacing:.3px;
+}
+.story-text b{ color:var(--red); }
+.story-text .en,
+.ending__body .en{
+  font-family:var(--en);
+  font-weight:700;
+  font-style:italic;
+  color:var(--blue);
+}
+.story-sub{
+  margin-top:12px;
+  padding-top:12px;
+  border-top:2px dashed var(--line);
+  font-size:13px;
+  line-height:1.95;
+  color:var(--muted);
+}
+
+.ask{
+  margin-top:18px;
+  padding-top:14px;
+  border-top:2px dashed var(--line);
+  font-size:14px;
+  font-weight:900;
+  color:var(--ink);
+  letter-spacing:.5px;
+}
+.ask__main{ font-family:var(--main-font); }
+.ask small{
+  display:block;
+  margin-top:4px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--muted);
+}
+
+/* ---------- 选项按钮 ----------
+   注意：所有分支一律同色（白底黑边），不用颜色区分好坏，
+   否则玩家一眼就能从配色里看出哪条是正解，剧情张力全没了。 */
+.options{
+  margin-top:16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.option-card{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  width:100%;
+  text-align:left;
+  background:var(--white);
+  border:3px solid var(--ink);
+  border-radius:12px;
+  box-shadow:var(--shadow-sm);
+  padding:14px 16px;
+  cursor:pointer;
+  transition:transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.option-card:hover:not(:disabled){
+  transform:translate(-3px,-3px);
+  box-shadow:6px 6px 0 var(--ink);
+  background:#fffdf5;
+}
+.option-card:active:not(:disabled){
+  transform:translate(2px,2px);
+  box-shadow:1px 1px 0 var(--ink);
+}
+.option-card:disabled{ cursor:default; opacity:.45; }
+.option-card.is-picked{
+  background:var(--ink);
+  color:var(--white);
+  opacity:1;
+}
+.option-card.is-picked .opt-sub{ color:#c8cdd4; }
+.option-card.is-picked .opt-key{ background:var(--yellow); color:var(--ink); }
+.option-card.is-picked .opt-badge{
+  background:var(--white);
+  color:var(--ink);
+  border-color:var(--white);
+}
+
+.opt-key{
+  flex:none;
+  width:26px;
+  height:26px;
+  display:grid;
+  place-items:center;
+  background:var(--ink);
+  color:var(--white);
+  font-size:13px;
+  font-weight:900;
+  border-radius:6px;
+}
+.opt-body{ flex:1; min-width:0; }
+.opt-text{
+  display:block;
+  font-family:var(--main-font);
+  font-size:14px;
+  font-weight:700;
+  line-height:1.9;
+}
+.opt-sub{
+  display:block;
+  margin-top:2px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--muted);
+  line-height:1.7;
+}
+.opt-badge{
+  flex:none;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.5px;
+  padding:4px 9px;
+  border:2px solid var(--ink);
+  border-radius:20px;
+  background:var(--bg);
+  color:var(--ink);
+}
+
+/* ---------- 结局卡 ---------- */
+.ending{
+  position:relative;
+  overflow:hidden;
+  border:4px solid var(--ink);
+  border-radius:16px;
+  box-shadow:var(--shadow-md);
+  padding:26px 24px;
+  animation:cardIn .38s cubic-bezier(.2,.9,.3,1.2) both;
+}
+.ending--win{    background:#eafff3; }
+.ending--normal{ background:#fffbe6; }
+.ending--gg{     background:#ffeef0; }
+
+.ending__watermark{
+  position:absolute;
+  right:-10px;
+  top:-24px;
+  font-size:130px;
+  font-weight:900;
+  line-height:1;
+  opacity:.08;
+  pointer-events:none;
+}
+.ending__tag{
+  display:inline-block;
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:2px;
+  color:var(--white);
+  padding:5px 12px;
+  border:2px solid var(--ink);
+  border-radius:20px;
+  box-shadow:var(--shadow-sm);
+  margin-bottom:14px;
+}
+.ending--win    .ending__tag{ background:var(--green); }
+.ending--normal .ending__tag{ background:var(--yellow); color:var(--ink); }
+.ending--gg     .ending__tag{ background:var(--red); }
+
+.ending__title{
+  font-family:var(--main-font);
+  font-size:clamp(22px,3.3vw,31px);
+  font-weight:900;
+  line-height:1.4;
+  letter-spacing:1px;
+  margin-bottom:12px;
+}
+.ending--win    .ending__title{ color:var(--green-deep); }
+.ending--normal .ending__title{ color:var(--yellow-deep); }
+.ending--gg     .ending__title{ color:var(--red-deep); }
+
+.ending__body{
+  font-family:var(--main-font);
+  font-size:15px;
+  line-height:var(--main-lh);
+  color:var(--ink);
+}
+.ending__body b{ color:var(--red); }
+.ending__sub{
+  margin-top:12px;
+  font-size:13px;
+  line-height:1.95;
+  color:var(--muted);
+}
+.ending__lesson{
+  margin-top:16px;
+  background:var(--white);
+  border:3px solid var(--ink);
+  border-radius:10px;
+  box-shadow:var(--shadow-sm);
+  padding:12px 14px;
+  font-size:13px;
+  font-weight:800;
+  line-height:1.9;
+  color:var(--ink);
+}
+.ending__lesson::before{
+  content:"📌 带走这一句";
+  display:block;
+  font-size:11px;
+  letter-spacing:1px;
+  color:var(--muted);
+  margin-bottom:4px;
+}
+.ending__lesson .jp{ font-family:var(--jp); color:var(--green-deep); }
+.ending__lesson .en{ font-family:var(--en); font-style:italic; color:var(--green-deep); }
+.ending__recap{
+  margin-top:16px;
+  padding-top:12px;
+  border-top:2px dashed rgba(17,17,17,.2);
+  font-size:12px;
+  font-weight:700;
+  color:var(--muted);
+  line-height:1.9;
+}
+.ending__recap span{ color:var(--ink); }
+
+/* ---------- 封面 ---------- */
+.cover-kicker{
+  font-family:var(--main-font);
+  font-size:13px;
+  font-weight:800;
+  letter-spacing:3px;
+  color:var(--muted);
+  margin-bottom:14px;
+}
+.main-title{
+  font-family:var(--main-font);
+  font-size:clamp(28px,4.3vw,41px);
+  font-weight:900;
+  line-height:1.35;
+  letter-spacing:2px;
+  color:var(--ink);
+}
+.main-title .accent{ color:var(--red); font-style:italic; }
+.cover-sub{
+  margin-top:10px;
+  font-size:14px;
+  font-weight:700;
+  color:var(--muted);
+  line-height:1.9;
+}
+.rules-card{
+  margin-top:20px;
+  text-align:left;
+  background:var(--bg);
+  border:3px dashed var(--ink);
+  border-radius:12px;
+  padding:16px 18px;
+}
+.rule-item{
+  font-size:13px;
+  font-weight:700;
+  line-height:2;
+  color:var(--dark);
+  padding-left:20px;
+  position:relative;
+}
+.rule-item::before{
+  content:"▶";
+  position:absolute;
+  left:0;
+  color:var(--red);
+  font-size:10px;
+}
+.collect-row{
+  margin-top:16px;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:8px;
+}
+.collect-dot{
+  font-family:var(--main-font);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:1px;
+  padding:5px 10px;
+  border:2px solid var(--ink);
+  border-radius:20px;
+  background:var(--white);
+  color:var(--line);
+}
+.collect-dot.is-found{
+  background:var(--ink);
+  color:var(--yellow);
+  box-shadow:var(--shadow-sm);
+}
+
+/* ---------- 底部操作区 ---------- */
+.action-bar{
+  flex:none;
+  padding-top:14px;
+  margin-top:10px;
+  border-top:3px solid var(--ink);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:64px;
+}
+.start-btn{
+  background:var(--red);
+  color:var(--white);
+  border:3px solid var(--ink);
+  border-radius:12px;
+  box-shadow:var(--shadow-md);
+  padding:12px 30px;
+  font-size:16px;
+  font-weight:900;
+  letter-spacing:1px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+.start-btn:hover{
+  transform:translate(-3px,-3px);
+  box-shadow:9px 9px 0 var(--ink);
+}
+.start-btn:active{
+  transform:translate(3px,3px);
+  box-shadow:2px 2px 0 var(--ink);
+}
+.start-btn--pulse{ animation:pulse 1.8s ease-in-out infinite; }
+.start-btn .btn-main{ font-family:var(--main-font); }
+.action-hint{
+  font-size:13px;
+  font-weight:700;
+  color:var(--muted);
+  letter-spacing:.5px;
+  text-align:center;
+  border:2px dashed var(--line);
+  border-radius:8px;
+  padding:12px 14px;
+}
+.action-hint .jp{ font-family:var(--jp); }
+
+/* ---------- 底部：累计访问量计数器 ---------- */
+.visit-counter{
+  flex:none;
+  margin-top:12px;
+  padding-top:10px;
+  border-top:2px dashed var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:1px;
+  color:var(--muted);
+}
+.visit-counter[hidden]{ display:none; }
+
+/* ---------- 右：录屏侧栏 ---------- */
+.youtube-sidebar{
+  flex:0.8;
+  height:100%;
+  flex-direction:column;
+  justify-content:space-between;
+  padding:20px 0;
+  text-align:left;
+}
+.channel-title-box h1{
+  font-size:clamp(26px,2.9vw,36px);
+  font-weight:900;
+  color:var(--ink);
+  line-height:1.3;
+  letter-spacing:1px;
+  margin-bottom:10px;
+}
+.channel-title-box .vs-mark{ color:var(--red); font-style:italic; }
+.channel-title-box p{
+  font-size:15px;
+  color:var(--muted);
+  font-weight:bold;
+  line-height:1.6;
+}
+.channel-title-box .tagline{
+  font-family:var(--main-font);
+  font-size:13px;
+  font-style:italic;
+  color:#9aa2ad;
+  margin-top:8px;
+  line-height:1.9;
+}
+body.lang-jp .channel-title-box .tagline{ font-style:normal; }
+.avatar-placeholder{
+  flex:1;
+  margin:20px 0;
+  background-color:rgba(17,17,17,.04);
+  border:3px dashed var(--ink);
+  border-radius:14px;
+  display:grid;
+  place-items:center;
+  text-align:center;
+  font-size:12px;
+  font-weight:800;
+  color:var(--muted);
+  padding:16px;
+  line-height:1.9;
+}
+.footer-guide-text{
+  font-size:13px;
+  font-weight:800;
+  color:var(--ink);
+  line-height:1.9;
+}
+
+/* ---------- 动画 ---------- */
+@keyframes cardIn{
+  from{ opacity:0; transform:translateY(14px) scale(.985); }
+  to  { opacity:1; transform:none; }
+}
+@keyframes pulse{
+  0%,100%{ transform:none; }
+  50%    { transform:translate(-2px,-2px); }
+}
+@keyframes shake{
+  10%,90%{ transform:translateX(-2px); }
+  20%,80%{ transform:translateX(4px); }
+  30%,50%,70%{ transform:translateX(-7px); }
+  40%,60%{ transform:translateX(7px); }
+}
+@keyframes popIn{
+  0%  { transform:scale(.6) rotate(-12deg); opacity:0; }
+  70% { transform:scale(1.12) rotate(4deg); opacity:1; }
+  100%{ transform:none; opacity:1; }
+}
+.pop{ display:inline-block; animation:popIn .5s cubic-bezier(.2,.9,.3,1.4) both; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation:none !important; transition:none !important; }
+}
+
+/* ---------- 手机端：放开高度限制，隐藏录屏侧栏 ---------- */
+@media (max-width: 860px){
+  body{ overflow:auto; align-items:flex-start; padding:12px; }
+  .main-wrapper{
+    height:auto;
+    max-width:100%;
+    flex-direction:column;
+    gap:16px;
+  }
+  body.video-mode .main-wrapper{ max-width:100%; }
+  .youtube-sidebar,
+  body.video-mode .youtube-sidebar{ display:none; }
+  .game-zone{
+    height:auto;
+    box-shadow:var(--shadow-md);
+    padding:18px 16px 14px;
+  }
+  .game-content-scroll{ overflow:visible; }
+  .card{ padding:18px 16px 20px; }
+}
+</style>
+</head>
+<body>
+
+<div class="main-wrapper">
+
+  <!-- ========== 左：游戏区 ========== -->
+  <div class="game-zone" id="app">
+
+    <!-- 顶部 HUD：走了几步 + 走过哪些场景 -->
+    <div class="hud" id="hud" hidden>
+      <span class="step-badge">第 <b id="stepNum">1</b> 步</span>
+      <div class="trail" id="trail"></div>
+    </div>
+
+    <!-- 剧情树自检报错条（正常情况下隐藏） -->
+    <div class="alert" id="alert" hidden></div>
+
+    <!-- 内部滚动区：剧情再长也不会撑爆外框 -->
+    <div class="game-content-scroll" id="scrollArea">
+      <div id="screen" aria-live="polite"></div>
+    </div>
+
+    <!-- 底部固定操作区：开始 / 提示 / 重新挑战 -->
+    <div class="action-bar" id="actionBar"></div>
+
+    <!-- ============================================================
+         累计访问量计数器（hits.sh 免费挂件，返回 SVG 图片）
+         src 由剧情包的 meta.counterSrc 决定，每个语言版本单独计数。
+         挂件加载不出来时（离线、被拦截）整行自动隐藏，不留裂图。
+         ============================================================ -->
+    <div class="visit-counter" id="visitCounter">
+      <span>累计访问</span>
+      <img id="counterImg" src="" alt="Views"
+           style="border: 2px solid #111111; padding: 2px; background: white; box-shadow: 2px 2px 0px #111111; vertical-align: middle;"
+           onerror="document.getElementById('visitCounter').hidden = true;">
+    </div>
+  </div>
+
+  <!-- ========== 右：录屏侧栏（?mode=video 才显示，手机端始终隐藏） ========== -->
+  <aside class="youtube-sidebar">
+    <div class="channel-title-box">
+      <h1 id="sbTitle"></h1>
+      <p id="sbSub"></p>
+      <p class="tagline" id="sbTag"></p>
+    </div>
+
+    <!-- OBS 里把摄像头 / Live2D 直接叠在这个框的位置 -->
+    <div class="avatar-placeholder" id="sbOverlay"></div>
+
+    <div class="footer-guide-text" id="sbFooter"></div>
+  </aside>
+
+</div>
+
+<script>
+/* ===== inlined: data/_story_core.js ===== */
+/* ============================================================
+   剧情引擎 —— 假名简写 / 结局定义 / 剧情树自检 / 状态机 / 渲染
+   剧情数据在同目录的 story-en.js · story-jp.js
+   新增一个语言版本：建一个 story-<lang>.js，在 build.mjs 的
+   STORY_LANGS 里加一行，其余不用动。
+
+   ★ 这个文件只有引擎，不含任何剧情文案。
+     加剧情请改 data/story-*.js；改样式请改 src/story.html。
+   ============================================================ */
+(function (root) {
+  "use strict";
+
+  /* 假名简写：{漢字|かんじ} → <ruby>漢字<rt>かんじ</rt></ruby>
+     和问答游戏用的是同一套写法，两边的文案可以直接互搬。
+     英文剧情里没有花括号，调用它也完全无害。 */
+  const R = (s) => String(s == null ? "" : s)
+    .replace(/\{([^|{}]+)\|([^{}]+)\}/g, '<ruby>$1<rt>$2</rt></ruby>');
+
+  /* 三类结局的配色与文案（CSS 里对应 .ending--win / --normal / --gg） */
+  const ENDING_META = {
+    win:    { tag:'PERFECT ENDING', mark:'👑', prefix:'👑 完美结局' },
+    normal: { tag:'NORMAL ENDING',  mark:'△',  prefix:'△ 平庸结局' },
+    gg:     { tag:'BAD ENDING',     mark:'×',  prefix:'× 惨烈结局' }
+  };
+
+  const START_ID = 'start';          // 每个剧情包的开局节点 id 都叫这个
+  const PACKS = {};                  // 已注册的剧情包，key 就是语言代号
+
+  /* ============================================================
+     剧情包注册
+     ------------------------------------------------------------
+     Story.define('jp', { meta:{...}, nodes:[...] })
+
+     节点字段：
+       id        唯一编号，被 choices.nextId 指向
+       scene     场景标签（剧情卡顶部的黑胶囊）
+       text      主文本（可写 HTML；{漢字|かんじ} 自动出假名）
+       sub       副文本／中文对照（可省略）
+       ask/askSub 设问主文本／副文本（可省略，省略时用 meta.ui 里的默认值）
+       choices   分支数组；有 choices＝剧情节点，没有＝结局节点
+         · text   选项主文本
+         · sub    选项副文本（可省略）
+         · badge  右侧趣味标签
+         · nextId 指向的下一个节点 id
+       ending    只有结局节点才写，取值 win / normal / gg
+       title     结局标题（结局节点必填）
+       lesson    结局金句（可省略）
+     ============================================================ */
+  function define(key, pack){
+    pack.key = key;
+    pack.nodes = pack.nodes || [];
+    pack.meta = pack.meta || {};
+    PACKS[key] = pack;
+    return pack;
+  }
+
+  const isEnding = (node) => !!node.ending;
+
+  /* 建 id → 节点的索引；重复 id 以第一个为准（重复本身由自检报出来） */
+  function indexOf(pack){
+    const map = Object.create(null);
+    pack.nodes.forEach((n) => { if (n.id && !map[n.id]) map[n.id] = n; });
+    return map;
+  }
+
+  /* ============================================================
+     剧情树自检：断链 / 重复 id / 结构错位 / 孤儿节点
+     ------------------------------------------------------------
+     纯数据校验，不碰 DOM —— 所以浏览器和 Node 都能跑，
+     tools/check-story.mjs 用的就是这个函数。
+     ============================================================ */
+  function validate(pack){
+    const errs = [], seen = new Set();
+    const nodes = pack.nodes || [];
+    const NODES = indexOf(pack);
+
+    nodes.forEach((n, i) => {
+      const at = `第 ${i + 1} 个节点（${n.id || '缺 id'}）`;
+      if (!n.id)    errs.push(`${at}：缺字段 id`);
+      if (!n.scene) errs.push(`${at}：缺字段 scene`);
+      if (!n.text)  errs.push(`${at}：缺字段 text`);
+      if (n.id){
+        if (seen.has(n.id)) errs.push(`${at}：id 与前面重复`);
+        seen.add(n.id);
+      }
+
+      if (isEnding(n)){
+        if (!ENDING_META[n.ending]) errs.push(`${at}：ending「${n.ending}」不合法（只能 win/normal/gg）`);
+        if (!n.title) errs.push(`${at}：结局节点缺字段 title`);
+        if (n.choices && n.choices.length) errs.push(`${at}：结局节点不该再有 choices`);
+        return;
+      }
+
+      if (!Array.isArray(n.choices) || !n.choices.length){
+        errs.push(`${at}：不是结局节点，却没有 choices（玩家会走进死胡同）`);
+        return;
+      }
+      n.choices.forEach((c, j) => {
+        const tag = `${at} 选项${"ABCDEF"[j] || j + 1}`;
+        if (!c.text)   errs.push(`${tag}：缺字段 text`);
+        if (!c.badge)  errs.push(`${tag}：缺字段 badge`);
+        if (!c.nextId) errs.push(`${tag}：缺字段 nextId`);
+        else if (!NODES[c.nextId]) errs.push(`${tag}：nextId「${c.nextId}」指向的节点不存在`);
+      });
+    });
+
+    if (!NODES[START_ID]) errs.push(`找不到开局节点「${START_ID}」`);
+
+    /* 从开局做一次可达性遍历，捞出永远走不到的孤儿节点 */
+    const reached = new Set();
+    (function walk(id){
+      if (!id || reached.has(id) || !NODES[id]) return;
+      reached.add(id);
+      (NODES[id].choices || []).forEach((c) => walk(c.nextId));
+    })(START_ID);
+    nodes.forEach((n) => {
+      if (n.id && !reached.has(n.id)) errs.push(`节点「${n.id}」从开局出发永远走不到（孤儿节点）`);
+    });
+
+    if (!nodes.filter(isEnding).length) errs.push('一个结局节点都没有，游戏无法收尾');
+
+    return errs;
+  }
+
+  /* 统计信息，给校验脚本和构建日志用 */
+  function stats(pack){
+    const nodes = pack.nodes || [];
+    const endings = nodes.filter(isEnding);
+    return {
+      nodes: nodes.length,
+      branches: nodes.reduce((n, x) => n + (x.choices ? x.choices.length : 0), 0),
+      endings: endings.length,
+      byEnding: endings.reduce((m, x) => (m[x.ending] = (m[x.ending] || 0) + 1, m), {})
+    };
+  }
+
+  /* ============================================================
+     挂载：把一个剧情包接到页面上（浏览器专用）
+     ============================================================ */
+  function mount(pack){
+    pack = pack || PACKS[Object.keys(PACKS)[0]];
+    if (!pack) { console.error('[剧情引擎] 没有已注册的剧情包'); return; }
+
+    const meta = pack.meta, ui = meta.ui || {}, cover = meta.cover || {};
+    const NODES = indexOf(pack);
+
+    const $ = (id) => document.getElementById(id);
+    const app = $("app"), hud = $("hud"), trailBox = $("trail"), stepNum = $("stepNum");
+    const screenBox = $("screen"), scrollArea = $("scrollArea"), actionBar = $("actionBar");
+
+    /* ---- 页面外壳：标题 / 字体 / 侧栏 / 计数器，全部由剧情包决定 ---- */
+    if (meta.docTitle) document.title = meta.docTitle;
+    document.body.classList.add("lang-" + (meta.lang || pack.key));
+
+    const sb = meta.sidebar || {};
+    const setHTML = (id, html) => { const el = $(id); if (el && html != null) el.innerHTML = R(html); };
+    setHTML("sbTitle",   sb.title);
+    setHTML("sbSub",     sb.sub);
+    setHTML("sbTag",     sb.tag);
+    setHTML("sbOverlay", sb.overlay);
+    setHTML("sbFooter",  sb.footer);
+
+    const counterImg = $("counterImg");
+    if (counterImg && meta.counterSrc) counterImg.src = meta.counterSrc;
+
+    /* ---- 结局收集：存浏览器本地，纯粹给重玩加点动力 ---- */
+    const SAVE_KEY = meta.saveKey || ("story:" + pack.key + ":endings");
+    const store = {
+      read(){
+        try { return new Set(JSON.parse(localStorage.getItem(SAVE_KEY) || "[]")); }
+        catch { return new Set(); }
+      },
+      add(id){
+        try {
+          const s = store.read();
+          s.add(id);
+          localStorage.setItem(SAVE_KEY, JSON.stringify([...s]));
+        } catch { /* 隐私模式 / 禁用存储：静默跳过 */ }
+      }
+    };
+
+    const state = { id:START_ID, path:[], locked:false };
+
+    function renderAction(html, onClick){
+      actionBar.innerHTML = html;
+      const btn = actionBar.querySelector("button");
+      if (btn && onClick) btn.addEventListener("click", onClick);
+    }
+
+    function renderTrail(){
+      stepNum.textContent = state.path.length;
+      trailBox.innerHTML = state.path
+        .slice(-4)                     // 只显示最近 4 段，长了也不会挤爆
+        .map((s) => `<span class="trail__item">${R(s)}</span>`)
+        .join('<span class="trail__arrow">▶</span>');
+      trailBox.scrollLeft = trailBox.scrollWidth;
+    }
+
+    /* ---------- 封面 ---------- */
+    function renderCover(){
+      hud.hidden = true;
+      scrollArea.scrollTop = 0;
+
+      const found = store.read();
+      const endings = pack.nodes.filter(isEnding);
+      const dots = endings.map((n) => {
+        const hit = found.has(n.id);
+        return `<span class="collect-dot${hit ? " is-found" : ""}">${
+          hit ? ENDING_META[n.ending].mark + " " + R(n.title) : (ui.lockedName || "？？？")
+        }</span>`;
+      }).join("");
+
+      const rules = (cover.rules || [])
+        .map((r) => `<div class="rule-item">${R(r).replace(/\{endings\}/g, endings.length)}</div>`)
+        .join("");
+
+      screenBox.innerHTML = `
+        <div class="card card--center">
+          <div class="cover-kicker">${R(cover.kicker || "")}</div>
+          <div class="main-title">${R(cover.title || "")}</div>
+          <p class="cover-sub">${R(cover.sub || "")}</p>
+          <div class="rules-card">${rules}</div>
+          <div class="collect-row">${dots}</div>
+        </div>`;
+
+      renderAction(
+        `<button class="start-btn start-btn--pulse" type="button">
+           <span class="btn-main">${R(cover.startMain || "START")}</span>
+           <span>${R(cover.startSub || "开始")}</span>
+         </button>`,
+        startGame
+      );
+    }
+
+    function startGame(){
+      state.id = START_ID;
+      state.path = [];
+      state.locked = false;
+      hud.hidden = false;
+      goTo(START_ID);
+    }
+
+    /* ---------- 剧情节点 ---------- */
+    function renderNode(node){
+      state.locked = false;
+      scrollArea.scrollTop = 0;
+
+      const sub    = node.sub ? `<p class="story-sub">${R(node.sub)}</p>` : "";
+      const askSub = node.askSub || ui.askSub;
+
+      screenBox.innerHTML = `
+        <div class="card">
+          <div class="scene-row">
+            <span class="scene">${R(node.scene)}</span>
+            <span class="scene scene--type">${R(ui.branchTag || "剧情分歧")}</span>
+          </div>
+          <p class="story-text">${R(node.text)}</p>
+          ${sub}
+          <p class="ask">
+            <span class="ask__main">${R(node.ask || ui.ask || "")}</span>
+            ${askSub ? `<small>${R(askSub)}</small>` : ""}
+          </p>
+          <div class="options">
+            ${node.choices.map((c, i) => `
+              <button class="option-card" type="button" data-i="${i}">
+                <span class="opt-key">${"ABC"[i] || i + 1}</span>
+                <span class="opt-body">
+                  <span class="opt-text">${R(c.text)}</span>
+                  ${c.sub ? `<span class="opt-sub">${R(c.sub)}</span>` : ""}
+                </span>
+                <span class="opt-badge">${R(c.badge)}</span>
+              </button>`).join("")}
+          </div>
+        </div>`;
+
+      renderAction(`<p class="action-hint">${R(ui.hint || "选一个走向 ／ A・B・C")}</p>`);
+
+      screenBox.querySelectorAll(".option-card").forEach((btn) => {
+        btn.addEventListener("click", () => pick(node, Number(btn.dataset.i), btn));
+      });
+    }
+
+    function pick(node, i, btn){
+      if (state.locked) return;
+      state.locked = true;
+
+      /* 先把选中的那条按下去，让观众看清玩家选了什么，再跳转 */
+      screenBox.querySelectorAll(".option-card").forEach((b) => { b.disabled = true; });
+      btn.classList.add("is-picked");
+
+      setTimeout(() => goTo(node.choices[i].nextId), 420);
+    }
+
+    /* ---------- 结局 ---------- */
+    function renderEnding(node){
+      const em = ENDING_META[node.ending];
+      scrollArea.scrollTop = 0;
+      store.add(node.id);
+
+      if (node.ending === "gg"){
+        app.classList.remove("is-hit");
+        void app.offsetWidth;          // 强制重排，让同一个动画能连播
+        app.classList.add("is-hit");
+      }
+
+      const sub    = node.sub ? `<p class="ending__sub">${R(node.sub)}</p>` : "";
+      const lesson = node.lesson ? `<div class="ending__lesson">${R(node.lesson)}</div>` : "";
+      const recap  = state.path.length
+        ? `<div class="ending__recap">${R(ui.recapLabel || "你走过的路：")}<span>${state.path.map(R).join(" ▶ ")}</span></div>`
+        : "";
+
+      screenBox.innerHTML = `
+        <div class="ending ending--${node.ending}">
+          <span class="ending__watermark">${em.mark}</span>
+          <span class="ending__tag">${em.tag}</span>
+          <h2 class="ending__title">
+            <span class="pop">${em.mark}</span>
+            ${em.prefix}：【${R(node.title)}】
+          </h2>
+          <p class="ending__body">${R(node.text)}</p>
+          ${sub}
+          ${lesson}
+          ${recap}
+        </div>`;
+
+      renderAction(
+        `<button class="start-btn" type="button">
+           <span class="btn-main">${R(ui.retryMain || "Retry")}</span>
+           <span>${R(ui.retrySub || "重新挑战 🔁")}</span>
+         </button>`,
+        renderCover
+      );
+    }
+
+    /* ---------- 跳转：整个引擎唯一的入口 ---------- */
+    function goTo(id){
+      const node = NODES[id];
+      if (!node){                      // 自检已经拦过一道，这里只是兜底
+        console.error("[剧情跳转失败] 找不到节点：", id);
+        return;
+      }
+      state.id = id;
+      state.path.push(node.scene);
+      renderTrail();
+      isEnding(node) ? renderEnding(node) : renderNode(node);
+    }
+
+    /* ---------- 键盘：A/B/C 与 1/2/3 都能选 ---------- */
+    addEventListener("keydown", (e) => {
+      if (state.locked) return;
+      const k = e.key.toLowerCase();
+      let i = "abc".indexOf(k);
+      if (i < 0) i = "123".indexOf(k);
+      if (i < 0) return;
+      const btn = screenBox.querySelector(`.option-card[data-i="${i}"]`);
+      if (btn && !btn.disabled) btn.click();
+    });
+
+    /* ---------- 启动：先自检剧情树，再渲染封面 ---------- */
+    const errs = validate(pack);
+    if (errs.length){
+      const box = $("alert");
+      box.hidden = false;
+      box.innerHTML = `<b>剧情树自检发现 ${errs.length} 处问题：</b>
+        <ul>${errs.map((e) => `<li>${e}</li>`).join("")}</ul>`;
+      console.error("[剧情树自检]", errs);
+    }
+    renderCover();
+  }
+
+  /* ============================================================
+     懒加载：在 base 目录下取 story-<lang>.js，加载完回调
+     单文件内联版不会用到它。
+     ============================================================ */
+  function load(base, lang, done){
+    const s = document.createElement('script');
+    s.src = base + 'story-' + lang + '.js';
+    s.onload = () => done(null);
+    s.onerror = () => done('story-' + lang + '.js');
+    document.head.appendChild(s);
+  }
+
+  root.Story = { R, ENDING_META, PACKS, START_ID, define, validate, stats, mount, load };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* ===== inlined: data/story-jp.js ===== */
+/* ============================================================
+   入社初日サバイバル Day 1：息が詰まる給湯室（日语版）
+   只放数据，加剧情直接往 nodes 数组里追加  字段说明见 data/_story_core.js
+   假名写法：{漢字|かんじ}     sub 字段是中文对照
+   ============================================================ */
+(function (Story) {
+  "use strict";
+
+  Story.define('jp', {
+
+    /* ---------- 页面外壳：标题 / 封面 / 侧栏 / 计数器 ---------- */
+    meta: {
+      docTitle:'入社初日サバイバル · 剧情文字冒险（日语版）',
+      lang:'jp',
+      saveKey:'jp-learning:story-jp:endings',
+      /* 计数 key 就是 URL 里那段路径：想单独统计就换路径，想清零也换新路径 */
+      counterSrc:'https://hits.sh/lyjellie.github.io/jp-learning-story-jp.svg?style=flat-square&label=views&color=ff4757&labelColor=111111',
+
+      cover:{
+        kicker:'{日本語|にほんご}シチュエーション・アドベンチャー',
+        title:'{入社|にゅうしゃ}{初日|しょにち} <span class="accent">Day 1</span><br>{息|いき}が{詰|つ}まる{給湯室|きゅうとうしつ}',
+        sub:'日语说得再流利，也救不了说错场合的那一句。<br>三个岔路口，一句话就能决定你明天还来不来。',
+        rules:[
+          '剧情按分支走，没有“第几题”，只有“你选了什么”',
+          '共 {endings} 种结局：完美通关 / 平庸收场 / 惨烈 GG',
+          '全部日文带假名注音，每句都配中文对照',
+          '键盘 A・B・C 或 1・2・3 也能选，方便录屏'
+        ],
+        startMain:'{出社|しゅっしゃ}する',
+        startSub:'开始上班 👔'
+      },
+
+      ui:{
+        branchTag:'剧情分歧',
+        ask:'どうする？',
+        askSub:'你打算：',
+        hint:'<span class="jp">A・B・C から{選|えら}んでください</span> ／ 选一个走向',
+        retryMain:'もう{一度|いちど}',
+        retrySub:'重新挑战 🔁',
+        recapLabel:'你走过的路：',
+        lockedName:'？？？'
+      },
+
+      sidebar:{
+        title:'{入社|にゅうしゃ}{初日|しょにち}<br><span class="vs-mark">Day 1</span> {息|いき}が{詰|つ}まる{給湯室|きゅうとうしつ}',
+        sub:'—— 敬语说错一句，第一天就能出局。',
+        tag:'{空気|くうき}を{読|よ}むな。{読|よ}んでから{喋|しゃべ}れ。',
+        overlay:'【OBS 画面叠加区：Live2D、真人出镜或动态字幕】',
+        footer:'👉 体验同款网页小游戏：网址已放在评论区置顶<br>✨ 喜欢请点赞、订阅，每周更新地道日本生存指南'
+      }
+    },
+
+    /* ---------- 剧情树 ---------- */
+    nodes: [
+
+      /* ===== 开局 ===== */
+      {
+        id:'start',
+        scene:'💼 日系企業の修羅場',
+        text:`{入社|にゅうしゃ}{初日|しょにち}。{給湯室|きゅうとうしつ}でコーヒーを{入|い}れていると、
+              {着任|ちゃくにん}したばかりの{部長|ぶちょう}が{入|はい}ってきた。
+              あなたの{名札|なふだ}をちらっと{見|み}て、{面白|おもしろ}そうに{言|い}う——
+              <b>「おっ、{新人|しんじん}くん。うちの{仕事|しごと}、やっていけそう？」</b><br>
+              {周|まわ}りではベテランの{先輩|せんぱい}たちがこちらを{見|み}ている。`,
+        sub:'入职第一天，你在茶水间接咖啡，刚上任的部长走了进来。他瞥了一眼你的工牌，饶有兴致地说：“哟，新人。我们这儿的活儿，干得来吗？”周围的资深前辈都在看着你。',
+        ask:'どうする？',
+        askSub:'你打算：',
+        choices:[
+          { text:'お{腹|なか}を{押|お}さえて「うっ、お{腹|なか}が…！」とトイレへ{逃|に}げ{込|こ}む。',
+            sub:'捂着肚子喊“唔，我肚子……！”冲进厕所。',
+            badge:'三十六计', nextId:'wc_gg' },
+          { text:'{直立不動|ちょくりつふどう}、{汗|あせ}だくで「はい！{死|し}ぬ{気|き}で{頑張|がんば}ります！」と{叫|さけ}ぶ。',
+            sub:'立正站好，满头大汗地大喊：“是！我会拼了命去干！”',
+            badge:'用力过猛', nextId:'humble_branch' },
+          { text:'{軽|かる}く{笑|わら}って「はい。まずはこの{一杯|いっぱい}をいただいてからで！」',
+            sub:'轻轻一笑：“没问题。不过得先让我喝完这杯。”',
+            badge:'松弛感', nextId:'perfect_branch' }
+        ]
+      },
+
+      /* ===== 分支：热血喊话之后 ===== */
+      {
+        id:'humble_branch',
+        scene:'👔 冷や汗が止まらない',
+        text:`あなたの{気合|きあ}いの{絶叫|ぜっきょう}に{部長|ぶちょう}はのけぞり、{給湯室|きゅうとうしつ}の{空気|くうき}が{一瞬|いっしゅん}で{固|かた}まった。
+              {部長|ぶちょう}は{肩|かた}をポンと{叩|たた}き、{乾|かわ}いた{笑|わら}いを{残|のこ}して{出|で}ていった。<br>
+              {午後|ごご}の{会議|かいぎ}。{部長|ぶちょう}がどう{考|かんが}えても{無理|むり}のある{案|あん}を{出|だ}し、{全員|ぜんいん}が{黙|だま}り{込|こ}む。
+              そこであなたが{名指|なざ}しされた——<b>「〇〇くんは、どう{思|おも}う？」</b>`,
+        sub:'你那一嗓子把部长吓得往后一仰，茶水间的空气瞬间凝固。他拍拍你的肩膀，干笑一声走了。下午开会，部长提出一个怎么看都不靠谱的方案，全场沉默。这时你被点名了——“〇〇君，你怎么看？”',
+        ask:'どう{答|こた}える？',
+        askSub:'你决定：',
+        choices:[
+          { text:'{正面|しょうめん}から「それは{無理|むり}だと{思|おも}います。」',
+            sub:'正面顶回去：“我觉得那不可行。”',
+            badge:'职场愣头青', nextId:'fire_gg' },
+          { text:'{内心|ないしん}ありえないと{思|おも}いつつ、{全力|ぜんりょく}で{頷|うなず}いて「さすがです！{完璧|かんぺき}だと{思|おも}います！」',
+            sub:'心里觉得离谱，却拼命点头：“不愧是您！我觉得非常完美！”',
+            badge:'职场马屁精', nextId:'normal_end' },
+          /* 原规格这里写的是 high_success，但清单里没有定义该节点，
+             按“共三个核心结局”的说明并入 perfect_win（第一印象翻车后靠情商翻盘）。 */
+          { text:'「おっしゃる{通|とお}りです。その{上|うえ}で、〇〇という{形|かたち}にすると、より{現実的|げんじつてき}かと{存|ぞん}じます。」',
+            sub:'“您说得对。在这个基础上，如果改成〇〇的形式，会不会更可行一些？”',
+            badge:'情商拉满', nextId:'perfect_win' }
+        ]
+      },
+
+      /* ===== 分支：松弛感回答之后 ===== */
+      {
+        id:'perfect_branch',
+        scene:'🔥 頭角を現す',
+        text:`{部長|ぶちょう}はあなたの{返|かえ}しに{吹|ふ}き{出|だ}し、「{肝|きも}が{据|す}わってるな」と{気|き}に{入|い}った{様子|ようす}だ。<br>
+              {午後|ごご}の{会議|かいぎ}。{部長|ぶちょう}が{無理|むり}のある{案|あん}を{出|だ}し、{場|ば}は{静|しず}まり{返|かえ}る。
+              {部長|ぶちょう}はまっすぐあなたを{見|み}て{言|い}った——<b>「どう{思|おも}う？」</b>`,
+        sub:'部长被你这句回话逗笑了，觉得“这小子挺沉得住气”。下午开会，部长提出一个不靠谱的方案，全场鸦雀无声。部长直直地看着你问：“你怎么看？”',
+        ask:'どう{答|こた}える？',
+        askSub:'你决定：',
+        choices:[
+          { text:'「それは{違|ちが}うと{思|おも}います。」',
+            sub:'“我觉得那样不对。”',
+            badge:'钢铁直男', nextId:'fire_gg' },
+          { text:'「おっしゃる{通|とお}りです。その{上|うえ}で、〇〇という{形|かたち}にすると…」',
+            sub:'“您说得对。在这个基础上，如果做成〇〇的形式……”',
+            badge:'大佬发言', nextId:'perfect_win' }
+        ]
+      },
+
+      /* ===== 结局 ===== */
+      {
+        id:'wc_gg',
+        scene:'💀 社会的抹殺',
+        ending:'gg',
+        title:'{空気|くうき}になった{新人|しんじん}',
+        text:`{逃|に}げ{切|き}ったつもりだった。しかし{部長|ぶちょう}は{隣|となり}の{先輩|せんぱい}に{振|ふ}り{向|む}いてこう{聞|き}いた——
+              <b>「{今|いま}の、お{腹|なか}を{押|お}さえて{出|で}てった{子|こ}、{名前|なまえ}なんだっけ？」</b><br>
+              あなたの{社会人生活|しゃかいじんせいかつ}は、{給湯室|きゅうとうしつ}で{静|しず}かに{終|お}わった。`,
+        sub:'你以为自己逃掉了。可部长转头问旁边的前辈：“刚才那个捂着肚子跑出去的，叫什么来着？”你的社会人生涯，在茶水间悄无声息地结束了。',
+        lesson:'答不上来也别逃。<span class="jp">{少|しょう}々お{待|ま}ちください</span>／<span class="jp">{確認|かくにん}して、のちほどご{報告|ほうこく}いたします</span> 才是能拖时间又不失分的说法。'
+      },
+      {
+        id:'fire_gg',
+        scene:'💀 荷物をまとめて',
+        ending:'gg',
+        title:'{空気|くうき}の{読|よ}めない{新人|しんじん}',
+        text:`{日本|にほん}の{会議|かいぎ}で{真|ま}っ{向|こう}から「それは{違|ちが}う」と{言|い}い{切|き}るのは、{部長|ぶちょう}の{顔|かお}に{泥|どろ}を{塗|ぬ}るのと{同|おな}じ。
+              {空気|くうき}が{音|おと}を{立|た}てて{凍|こお}りついた。<br>
+              その{日|ひ}の{夕方|ゆうがた}、あなたは{人事|じんじ}に{呼|よ}ばれた……`,
+        sub:'在日本的会议上当面把话说死成“那不对”，等于当众打部长的脸。空气发出声响般地冻住了。当天傍晚，你就被人事叫去谈话了……',
+        lesson:'反对要先接住再转弯：<span class="jp">おっしゃる{通|とお}りです。その{上|うえ}で…</span> 先肯定，再提修正。'
+      },
+      {
+        id:'normal_end',
+        scene:'😐 とりあえず生き残った',
+        ending:'normal',
+        title:'{便利|べんり}な「いい{人|ひと}」',
+        text:`{部長|ぶちょう}は「{主体性|しゅたいせい}はないが、{素直|すなお}でいい」とあなたを{評価|ひょうか}した。<br>
+              {仕事|しごと}は{守|まも}れた。ただし{名前|なまえ}が{挙|あ}がるのは、いつも{雑用|ざつよう}の{時|とき}だけ。`,
+        sub:'部长对你的评价是“没什么主见，但胜在听话”。工作是保住了，可每次被点到名字，都是分派杂活的时候。',
+        lesson:'一味附和保得住位子，保不住存在感。加一句 <span class="jp">{一点|いってん}だけよろしいでしょうか</span>，就能开始被看见。'
+      },
+      {
+        id:'perfect_win',
+        scene:'🎉 明日のエース',
+        ending:'win',
+        title:'{天選|てんせん}の{若手|わかて}',
+        text:`{部長|ぶちょう}はあなたの「{否定|ひてい}せずに{修正|しゅうせい}する」{返|かえ}しを{絶賛|ぜっさん}し、
+              その{場|ば}でプロジェクトの{中核|ちゅうかく}を{任|まか}せると{宣言|せんげん}した。<br>
+              {入社|にゅうしゃ}{初日|しょにち}にして、あなたは{昇進|しょうしん}レースの{切符|きっぷ}を{手|て}に{入|い}れた！`,
+        sub:'部长对你那句“不否定、只修正”的回应赞不绝口，当场宣布把项目的核心部分交给你。入职第一天，你就拿到了升职赛道的入场券！',
+        lesson:'日本职场的高分回答永远是这个句型：<span class="jp">おっしゃる{通|とお}りです。その{上|うえ}で、〇〇かと{存|ぞん}じます</span>。'
+      }
+
+    ]
+  });
+
+})(window.Story);
+</script>
+<script>window.__STORY_LANG__="jp";</script>
+<script>
+(() => {
+  "use strict";
+
+  /* ============================================================
+     URL 暗号：网址带 ?mode=video 才进入「录屏模式」
+     ------------------------------------------------------------
+       story-xx.html              → 玩家版：右侧栏隐藏，游戏区居中占满
+       story-xx.html?mode=video   → 录屏版：右侧栏浮现，恢复左右分栏
+     参数名和参数值都不区分大小写（?MODE=Video 一样认）。
+     显示/隐藏全部由 CSS 的 body.video-mode 规则控制，
+     这里只负责给 <body> 挂上这个 class。
+     ============================================================ */
+  const urlParams = new URLSearchParams(location.search);
+  let modeValue = "", langValue = "";
+  urlParams.forEach((value, key) => {
+    const k = key.trim().toLowerCase();
+    if (k === "mode") modeValue = String(value).trim().toLowerCase();
+    if (k === "lang") langValue = String(value).trim().toLowerCase();
+  });
+  document.body.classList.toggle("video-mode", modeValue === "video");
+
+  /* ---- 剧情包加载 ----
+     构建出来的成品已经把剧情内联进来了（__STORY_LANG__ 由 build.mjs 写入），
+     直接挂载即可；开发时双击 src/story.html 打开，
+     则从 ../data/ 现取，默认日语版，?lang=en 切英文版。 */
+  const DATA_BASE = "../data/";   // build.mjs 懒加载模式会改写成 "data/"
+
+  if (window.__STORY_LANG__){
+    Story.mount(Story.PACKS[window.__STORY_LANG__]);
+  } else {
+    const lang = langValue || "jp";
+    Story.load(DATA_BASE, lang, (failed) => {
+      if (failed){
+        const box = document.getElementById("alert");
+        box.hidden = false;
+        box.innerHTML = "<b>剧情加载失败：</b>data/" + failed +
+          "。<br>请确认 data/ 目录与页面放在一起，或改用构建好的成品页。";
+        console.error("[剧情加载失败]", failed);
+        return;
+      }
+      Story.mount(Story.PACKS[lang]);
+    });
+  }
+})();
+</script>
+</body>
+</html>

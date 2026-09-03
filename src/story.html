@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>剧情文字冒险</title>
+<style>
+/* ============================================================
+   剧情走向文字冒险 —— 页面骨架（EN / JP 共用这一份）
+   波普 / 复古扁平（Neo-brutalism）：米底 + 黑粗边 + 硬投影
+   红 #ff4757 = 踩雷   绿 #2ed573 = 通关   黄 #f1c40f = 平庸
+
+   · 剧情文案在 data/story-<lang>.js
+   · 引擎在 data/_story_core.js
+   · 这里只放样式和空壳，文字全部由剧情包的 meta 填进来
+   ============================================================ */
+
+:root{
+  --bg:      #f7f1e3;
+  --card:    #fcfaf2;
+  --white:   #ffffff;
+  --ink:     #111111;
+  --dark:    #2f3542;
+  --muted:   #57606f;
+  --line:    #dfe4ea;
+  --red:     #ff4757;
+  --red-deep:#c72c39;
+  --green:   #2ed573;
+  --green-deep:#0b5d33;
+  --blue:    #1e90ff;
+  --yellow:  #f1c40f;
+  --yellow-deep:#8a6d00;
+  --shadow:    12px 12px 0px var(--ink);
+  --shadow-md: 6px 6px 0px var(--ink);
+  --shadow-sm: 3px 3px 0px var(--ink);
+  --cn: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --jp: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --en: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  --solo-width: 720px;      /* 单人模式下的卡片宽度，只调这一个值 */
+  --main-font:  var(--cn);  /* 剧情正文字体，日语版由 body.lang-jp 覆盖 */
+  --main-lh:    2;          /* 剧情正文行高，日语版要给 ruby 留位置 */
+}
+
+/* 日语剧情包挂上 body.lang-jp：正文换日文字体、行高放大给假名留空间 */
+body.lang-jp{ --main-font: var(--jp); --main-lh: 2.4; }
+
+*{ box-sizing:border-box; margin:0; padding:0; font-family:var(--cn); }
+
+body{
+  background-color:var(--bg);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  padding:20px;
+  color:var(--dark);
+  overflow:hidden;          /* 桌面端：整页不出现系统滚动条，录屏画面干净 */
+}
+
+/* ---------- 假名注音 ---------- */
+ruby{ ruby-align:center; }
+rt{
+  font-family:var(--jp);
+  font-size:.5em;
+  font-weight:600;
+  color:var(--muted);
+  letter-spacing:0;
+  user-select:none;
+}
+
+/* ============================================================
+   两种版式，靠 <body class="video-mode"> 切换（JS 读 URL 决定）
+
+   ① 默认（story-xx.html）：右侧栏 display:none，
+      外框收窄到 --solo-width，游戏区占满 100% 宽度并居中。
+   ② 录屏（story-xx.html?mode=video）：右侧栏浮现，
+      外框拉到 1100px，恢复 16:9 的左右分栏比例。
+   ============================================================ */
+.main-wrapper{
+  display:flex;
+  flex-direction:row;
+  width:100%;
+  max-width:var(--solo-width);
+  height:85vh;              /* 锁死高度，绝不超出屏幕 */
+  gap:40px;
+  align-items:center;
+  justify-content:center;
+}
+body.video-mode .main-wrapper{ max-width:1100px; }
+
+.youtube-sidebar{ display:none; }
+body.video-mode .youtube-sidebar{ display:flex; }
+
+/* ---------- 左：游戏区 ---------- */
+.game-zone{
+  flex:1;
+  width:100%;
+  height:100%;
+  min-width:0;
+  background:var(--card);
+  border:4px solid var(--ink);
+  border-radius:16px;
+  box-shadow:var(--shadow);
+  padding:24px 26px 18px;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+body.video-mode .game-zone{ flex:1.2; }
+.game-zone.is-hit{ animation:shake .45s cubic-bezier(.36,.07,.19,.97) both; }
+
+/* ---------- 顶部 HUD：步数 + 走过的路 ---------- */
+.hud{
+  flex:none;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding-bottom:12px;
+  margin-bottom:14px;
+  border-bottom:3px solid var(--ink);
+}
+.hud[hidden]{ display:none; }
+.step-badge{
+  flex:none;
+  background:var(--ink);
+  color:var(--white);
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:1px;
+  padding:5px 10px;
+  border-radius:6px;
+}
+.step-badge b{ color:var(--yellow); font-size:15px; }
+.trail{
+  flex:1;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  overflow:hidden;
+  white-space:nowrap;
+}
+.trail__item{
+  flex:none;
+  font-size:11px;
+  font-weight:700;
+  color:var(--muted);
+  background:var(--white);
+  border:2px solid var(--line);
+  border-radius:20px;
+  padding:3px 9px;
+}
+.trail__item:last-child{
+  color:var(--ink);
+  border-color:var(--ink);
+  box-shadow:var(--shadow-sm);
+}
+.trail__arrow{ flex:none; font-size:11px; color:var(--line); }
+
+/* ---------- 剧情树自检报错条 ---------- */
+.alert{
+  flex:none;
+  background:var(--red);
+  color:var(--white);
+  border:3px solid var(--ink);
+  border-radius:10px;
+  box-shadow:var(--shadow-sm);
+  padding:10px 14px;
+  margin-bottom:12px;
+  font-size:12px;
+  line-height:1.7;
+}
+.alert[hidden]{ display:none; }
+.alert ul{ margin:6px 0 0 18px; }
+
+/* ---------- 中段：唯一允许滚动的区域 ---------- */
+.game-content-scroll{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding-right:10px;
+  scrollbar-width:thin;
+  scrollbar-color:var(--line) transparent;
+}
+.game-content-scroll::-webkit-scrollbar{ width:8px; }
+.game-content-scroll::-webkit-scrollbar-track{ background:transparent; }
+.game-content-scroll::-webkit-scrollbar-thumb{
+  background:var(--line);
+  border-radius:8px;
+}
+
+/* ---------- 卡片 ---------- */
+.card{
+  background:var(--white);
+  border:3px solid var(--ink);
+  border-radius:14px;
+  box-shadow:var(--shadow-md);
+  padding:22px 22px 24px;
+  animation:cardIn .32s cubic-bezier(.2,.9,.3,1.2) both;
+}
+.card--center{ text-align:center; }
+
+.scene-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:14px;
+}
+.scene{
+  background:var(--ink);
+  color:var(--white);
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:1px;
+  padding:5px 12px;
+  border-radius:20px;
+}
+.scene--type{
+  background:var(--white);
+  color:var(--ink);
+  border:2px solid var(--ink);
+}
+
+/* 剧情正文（主文本）＋ 副文本／中文对照 */
+.story-text{
+  font-family:var(--main-font);
+  font-size:16px;
+  line-height:var(--main-lh);
+  color:var(--ink);
+  letter-spacing:.3px;
+}
+.story-text b{ color:var(--red); }
+.story-text .en,
+.ending__body .en{
+  font-family:var(--en);
+  font-weight:700;
+  font-style:italic;
+  color:var(--blue);
+}
+.story-sub{
+  margin-top:12px;
+  padding-top:12px;
+  border-top:2px dashed var(--line);
+  font-size:13px;
+  line-height:1.95;
+  color:var(--muted);
+}
+
+.ask{
+  margin-top:18px;
+  padding-top:14px;
+  border-top:2px dashed var(--line);
+  font-size:14px;
+  font-weight:900;
+  color:var(--ink);
+  letter-spacing:.5px;
+}
+.ask__main{ font-family:var(--main-font); }
+.ask small{
+  display:block;
+  margin-top:4px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--muted);
+}
+
+/* ---------- 选项按钮 ----------
+   注意：所有分支一律同色（白底黑边），不用颜色区分好坏，
+   否则玩家一眼就能从配色里看出哪条是正解，剧情张力全没了。 */
+.options{
+  margin-top:16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.option-card{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  width:100%;
+  text-align:left;
+  background:var(--white);
+  border:3px solid var(--ink);
+  border-radius:12px;
+  box-shadow:var(--shadow-sm);
+  padding:14px 16px;
+  cursor:pointer;
+  transition:transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.option-card:hover:not(:disabled){
+  transform:translate(-3px,-3px);
+  box-shadow:6px 6px 0 var(--ink);
+  background:#fffdf5;
+}
+.option-card:active:not(:disabled){
+  transform:translate(2px,2px);
+  box-shadow:1px 1px 0 var(--ink);
+}
+.option-card:disabled{ cursor:default; opacity:.45; }
+.option-card.is-picked{
+  background:var(--ink);
+  color:var(--white);
+  opacity:1;
+}
+.option-card.is-picked .opt-sub{ color:#c8cdd4; }
+.option-card.is-picked .opt-key{ background:var(--yellow); color:var(--ink); }
+.option-card.is-picked .opt-badge{
+  background:var(--white);
+  color:var(--ink);
+  border-color:var(--white);
+}
+
+.opt-key{
+  flex:none;
+  width:26px;
+  height:26px;
+  display:grid;
+  place-items:center;
+  background:var(--ink);
+  color:var(--white);
+  font-size:13px;
+  font-weight:900;
+  border-radius:6px;
+}
+.opt-body{ flex:1; min-width:0; }
+.opt-text{
+  display:block;
+  font-family:var(--main-font);
+  font-size:14px;
+  font-weight:700;
+  line-height:1.9;
+}
+.opt-sub{
+  display:block;
+  margin-top:2px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--muted);
+  line-height:1.7;
+}
+.opt-badge{
+  flex:none;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.5px;
+  padding:4px 9px;
+  border:2px solid var(--ink);
+  border-radius:20px;
+  background:var(--bg);
+  color:var(--ink);
+}
+
+/* ---------- 结局卡 ---------- */
+.ending{
+  position:relative;
+  overflow:hidden;
+  border:4px solid var(--ink);
+  border-radius:16px;
+  box-shadow:var(--shadow-md);
+  padding:26px 24px;
+  animation:cardIn .38s cubic-bezier(.2,.9,.3,1.2) both;
+}
+.ending--win{    background:#eafff3; }
+.ending--normal{ background:#fffbe6; }
+.ending--gg{     background:#ffeef0; }
+
+.ending__watermark{
+  position:absolute;
+  right:-10px;
+  top:-24px;
+  font-size:130px;
+  font-weight:900;
+  line-height:1;
+  opacity:.08;
+  pointer-events:none;
+}
+.ending__tag{
+  display:inline-block;
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:2px;
+  color:var(--white);
+  padding:5px 12px;
+  border:2px solid var(--ink);
+  border-radius:20px;
+  box-shadow:var(--shadow-sm);
+  margin-bottom:14px;
+}
+.ending--win    .ending__tag{ background:var(--green); }
+.ending--normal .ending__tag{ background:var(--yellow); color:var(--ink); }
+.ending--gg     .ending__tag{ background:var(--red); }
+
+.ending__title{
+  font-family:var(--main-font);
+  font-size:clamp(22px,3.3vw,31px);
+  font-weight:900;
+  line-height:1.4;
+  letter-spacing:1px;
+  margin-bottom:12px;
+}
+.ending--win    .ending__title{ color:var(--green-deep); }
+.ending--normal .ending__title{ color:var(--yellow-deep); }
+.ending--gg     .ending__title{ color:var(--red-deep); }
+
+.ending__body{
+  font-family:var(--main-font);
+  font-size:15px;
+  line-height:var(--main-lh);
+  color:var(--ink);
+}
+.ending__body b{ color:var(--red); }
+.ending__sub{
+  margin-top:12px;
+  font-size:13px;
+  line-height:1.95;
+  color:var(--muted);
+}
+.ending__lesson{
+  margin-top:16px;
+  background:var(--white);
+  border:3px solid var(--ink);
+  border-radius:10px;
+  box-shadow:var(--shadow-sm);
+  padding:12px 14px;
+  font-size:13px;
+  font-weight:800;
+  line-height:1.9;
+  color:var(--ink);
+}
+.ending__lesson::before{
+  content:"📌 带走这一句";
+  display:block;
+  font-size:11px;
+  letter-spacing:1px;
+  color:var(--muted);
+  margin-bottom:4px;
+}
+.ending__lesson .jp{ font-family:var(--jp); color:var(--green-deep); }
+.ending__lesson .en{ font-family:var(--en); font-style:italic; color:var(--green-deep); }
+.ending__recap{
+  margin-top:16px;
+  padding-top:12px;
+  border-top:2px dashed rgba(17,17,17,.2);
+  font-size:12px;
+  font-weight:700;
+  color:var(--muted);
+  line-height:1.9;
+}
+.ending__recap span{ color:var(--ink); }
+
+/* ---------- 封面 ---------- */
+.cover-kicker{
+  font-family:var(--main-font);
+  font-size:13px;
+  font-weight:800;
+  letter-spacing:3px;
+  color:var(--muted);
+  margin-bottom:14px;
+}
+.main-title{
+  font-family:var(--main-font);
+  font-size:clamp(28px,4.3vw,41px);
+  font-weight:900;
+  line-height:1.35;
+  letter-spacing:2px;
+  color:var(--ink);
+}
+.main-title .accent{ color:var(--red); font-style:italic; }
+.cover-sub{
+  margin-top:10px;
+  font-size:14px;
+  font-weight:700;
+  color:var(--muted);
+  line-height:1.9;
+}
+.rules-card{
+  margin-top:20px;
+  text-align:left;
+  background:var(--bg);
+  border:3px dashed var(--ink);
+  border-radius:12px;
+  padding:16px 18px;
+}
+.rule-item{
+  font-size:13px;
+  font-weight:700;
+  line-height:2;
+  color:var(--dark);
+  padding-left:20px;
+  position:relative;
+}
+.rule-item::before{
+  content:"▶";
+  position:absolute;
+  left:0;
+  color:var(--red);
+  font-size:10px;
+}
+.collect-row{
+  margin-top:16px;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:8px;
+}
+.collect-dot{
+  font-family:var(--main-font);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:1px;
+  padding:5px 10px;
+  border:2px solid var(--ink);
+  border-radius:20px;
+  background:var(--white);
+  color:var(--line);
+}
+.collect-dot.is-found{
+  background:var(--ink);
+  color:var(--yellow);
+  box-shadow:var(--shadow-sm);
+}
+
+/* ---------- 底部操作区 ---------- */
+.action-bar{
+  flex:none;
+  padding-top:14px;
+  margin-top:10px;
+  border-top:3px solid var(--ink);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:64px;
+}
+.start-btn{
+  background:var(--red);
+  color:var(--white);
+  border:3px solid var(--ink);
+  border-radius:12px;
+  box-shadow:var(--shadow-md);
+  padding:12px 30px;
+  font-size:16px;
+  font-weight:900;
+  letter-spacing:1px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+.start-btn:hover{
+  transform:translate(-3px,-3px);
+  box-shadow:9px 9px 0 var(--ink);
+}
+.start-btn:active{
+  transform:translate(3px,3px);
+  box-shadow:2px 2px 0 var(--ink);
+}
+.start-btn--pulse{ animation:pulse 1.8s ease-in-out infinite; }
+.start-btn .btn-main{ font-family:var(--main-font); }
+.action-hint{
+  font-size:13px;
+  font-weight:700;
+  color:var(--muted);
+  letter-spacing:.5px;
+  text-align:center;
+  border:2px dashed var(--line);
+  border-radius:8px;
+  padding:12px 14px;
+}
+.action-hint .jp{ font-family:var(--jp); }
+
+/* ---------- 底部：累计访问量计数器 ---------- */
+.visit-counter{
+  flex:none;
+  margin-top:12px;
+  padding-top:10px;
+  border-top:2px dashed var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:1px;
+  color:var(--muted);
+}
+.visit-counter[hidden]{ display:none; }
+
+/* ---------- 右：录屏侧栏 ---------- */
+.youtube-sidebar{
+  flex:0.8;
+  height:100%;
+  flex-direction:column;
+  justify-content:space-between;
+  padding:20px 0;
+  text-align:left;
+}
+.channel-title-box h1{
+  font-size:clamp(26px,2.9vw,36px);
+  font-weight:900;
+  color:var(--ink);
+  line-height:1.3;
+  letter-spacing:1px;
+  margin-bottom:10px;
+}
+.channel-title-box .vs-mark{ color:var(--red); font-style:italic; }
+.channel-title-box p{
+  font-size:15px;
+  color:var(--muted);
+  font-weight:bold;
+  line-height:1.6;
+}
+.channel-title-box .tagline{
+  font-family:var(--main-font);
+  font-size:13px;
+  font-style:italic;
+  color:#9aa2ad;
+  margin-top:8px;
+  line-height:1.9;
+}
+body.lang-jp .channel-title-box .tagline{ font-style:normal; }
+.avatar-placeholder{
+  flex:1;
+  margin:20px 0;
+  background-color:rgba(17,17,17,.04);
+  border:3px dashed var(--ink);
+  border-radius:14px;
+  display:grid;
+  place-items:center;
+  text-align:center;
+  font-size:12px;
+  font-weight:800;
+  color:var(--muted);
+  padding:16px;
+  line-height:1.9;
+}
+.footer-guide-text{
+  font-size:13px;
+  font-weight:800;
+  color:var(--ink);
+  line-height:1.9;
+}
+
+/* ---------- 动画 ---------- */
+@keyframes cardIn{
+  from{ opacity:0; transform:translateY(14px) scale(.985); }
+  to  { opacity:1; transform:none; }
+}
+@keyframes pulse{
+  0%,100%{ transform:none; }
+  50%    { transform:translate(-2px,-2px); }
+}
+@keyframes shake{
+  10%,90%{ transform:translateX(-2px); }
+  20%,80%{ transform:translateX(4px); }
+  30%,50%,70%{ transform:translateX(-7px); }
+  40%,60%{ transform:translateX(7px); }
+}
+@keyframes popIn{
+  0%  { transform:scale(.6) rotate(-12deg); opacity:0; }
+  70% { transform:scale(1.12) rotate(4deg); opacity:1; }
+  100%{ transform:none; opacity:1; }
+}
+.pop{ display:inline-block; animation:popIn .5s cubic-bezier(.2,.9,.3,1.4) both; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation:none !important; transition:none !important; }
+}
+
+/* ---------- 手机端：放开高度限制，隐藏录屏侧栏 ---------- */
+@media (max-width: 860px){
+  body{ overflow:auto; align-items:flex-start; padding:12px; }
+  .main-wrapper{
+    height:auto;
+    max-width:100%;
+    flex-direction:column;
+    gap:16px;
+  }
+  body.video-mode .main-wrapper{ max-width:100%; }
+  .youtube-sidebar,
+  body.video-mode .youtube-sidebar{ display:none; }
+  .game-zone{
+    height:auto;
+    box-shadow:var(--shadow-md);
+    padding:18px 16px 14px;
+  }
+  .game-content-scroll{ overflow:visible; }
+  .card{ padding:18px 16px 20px; }
+}
+</style>
+</head>
+<body>
+
+<div class="main-wrapper">
+
+  <!-- ========== 左：游戏区 ========== -->
+  <div class="game-zone" id="app">
+
+    <!-- 顶部 HUD：走了几步 + 走过哪些场景 -->
+    <div class="hud" id="hud" hidden>
+      <span class="step-badge">第 <b id="stepNum">1</b> 步</span>
+      <div class="trail" id="trail"></div>
+    </div>
+
+    <!-- 剧情树自检报错条（正常情况下隐藏） -->
+    <div class="alert" id="alert" hidden></div>
+
+    <!-- 内部滚动区：剧情再长也不会撑爆外框 -->
+    <div class="game-content-scroll" id="scrollArea">
+      <div id="screen" aria-live="polite"></div>
+    </div>
+
+    <!-- 底部固定操作区：开始 / 提示 / 重新挑战 -->
+    <div class="action-bar" id="actionBar"></div>
+
+    <!-- ============================================================
+         累计访问量计数器（hits.sh 免费挂件，返回 SVG 图片）
+         src 由剧情包的 meta.counterSrc 决定，每个语言版本单独计数。
+         挂件加载不出来时（离线、被拦截）整行自动隐藏，不留裂图。
+         ============================================================ -->
+    <div class="visit-counter" id="visitCounter">
+      <span>累计访问</span>
+      <img id="counterImg" src="" alt="Views"
+           style="border: 2px solid #111111; padding: 2px; background: white; box-shadow: 2px 2px 0px #111111; vertical-align: middle;"
+           onerror="document.getElementById('visitCounter').hidden = true;">
+    </div>
+  </div>
+
+  <!-- ========== 右：录屏侧栏（?mode=video 才显示，手机端始终隐藏） ========== -->
+  <aside class="youtube-sidebar">
+    <div class="channel-title-box">
+      <h1 id="sbTitle"></h1>
+      <p id="sbSub"></p>
+      <p class="tagline" id="sbTag"></p>
+    </div>
+
+    <!-- OBS 里把摄像头 / Live2D 直接叠在这个框的位置 -->
+    <div class="avatar-placeholder" id="sbOverlay"></div>
+
+    <div class="footer-guide-text" id="sbFooter"></div>
+  </aside>
+
+</div>
+
+<script src="../data/_story_core.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  /* ============================================================
+     URL 暗号：网址带 ?mode=video 才进入「录屏模式」
+     ------------------------------------------------------------
+       story-xx.html              → 玩家版：右侧栏隐藏，游戏区居中占满
+       story-xx.html?mode=video   → 录屏版：右侧栏浮现，恢复左右分栏
+     参数名和参数值都不区分大小写（?MODE=Video 一样认）。
+     显示/隐藏全部由 CSS 的 body.video-mode 规则控制，
+     这里只负责给 <body> 挂上这个 class。
+     ============================================================ */
+  const urlParams = new URLSearchParams(location.search);
+  let modeValue = "", langValue = "";
+  urlParams.forEach((value, key) => {
+    const k = key.trim().toLowerCase();
+    if (k === "mode") modeValue = String(value).trim().toLowerCase();
+    if (k === "lang") langValue = String(value).trim().toLowerCase();
+  });
+  document.body.classList.toggle("video-mode", modeValue === "video");
+
+  /* ---- 剧情包加载 ----
+     构建出来的成品已经把剧情内联进来了（__STORY_LANG__ 由 build.mjs 写入），
+     直接挂载即可；开发时双击 src/story.html 打开，
+     则从 ../data/ 现取，默认日语版，?lang=en 切英文版。 */
+  const DATA_BASE = "../data/";   // build.mjs 懒加载模式会改写成 "data/"
+
+  if (window.__STORY_LANG__){
+    Story.mount(Story.PACKS[window.__STORY_LANG__]);
+  } else {
+    const lang = langValue || "jp";
+    Story.load(DATA_BASE, lang, (failed) => {
+      if (failed){
+        const box = document.getElementById("alert");
+        box.hidden = false;
+        box.innerHTML = "<b>剧情加载失败：</b>data/" + failed +
+          "。<br>请确认 data/ 目录与页面放在一起，或改用构建好的成品页。";
+        console.error("[剧情加载失败]", failed);
+        return;
+      }
+      Story.mount(Story.PACKS[lang]);
+    });
+  }
+})();
+</script>
+</body>
+</html>
