@@ -1331,7 +1331,9 @@ body.video-mode .game-zone{ flex:1.2; }   /* 录屏：左侧约占 6 成 */
   if (window.__JP_INLINE__){
     boot();
   } else {
-    scrollArea.innerHTML = '<div style="padding:2.5rem 1rem;text-align:center;opacity:.55">読み込み中…</div>';
+    /* 占位只能写 #screen：写 scrollArea 会把 #alert / #screen 一起 innerHTML 清掉，
+       上面缓存的元素引用随之失效，之后 renderCover() 渲染到游离节点上，页面永远停在这行字。 */
+    screen.innerHTML = '<div style="padding:2.5rem 1rem;text-align:center;opacity:.55">読み込み中…</div>';
     JP.load(DATA_BASE, (failed) => {
       if (failed.length){
         const box = $("alert");
